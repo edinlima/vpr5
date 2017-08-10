@@ -78,3 +78,5 @@ Initial Placement Cost: 1 bb_cost: 391.556 td_cost: 6.59281e-05 delay_cost: 6.87
           T        Cost Av. BB Cost  Av. TD Cost   Av Tot Del  P to P Del        d_max   Ac Rate  Std Dev  R limit      Exp  Tot. Moves    Alpha
    --------  ---------- -----------  -----------    ---------  ----------        -----   -------  -------  -------  -------  ----------    -----
 Error: Moving CLB to illegal type block at (23,0)
+
+tt1
