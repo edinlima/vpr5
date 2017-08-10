@@ -1,0 +1,33 @@
+//
+// C++ Interface: block
+//
+// Description: 
+//
+//
+// Author: Ednaldo Mariano <edinlima@gmail.com>, (C) 2007
+//
+// Copyright: See COPYING file that comes with this distribution
+//
+//
+#ifndef BLOCK_H
+#define BLOCK_H
+
+/**
+	@author Ednaldo Mariano <edinlima@gmail.com>
+*/
+class Block{
+public:
+    Block();
+
+    ~Block();
+    
+private:
+   int x;
+   int y;
+   enum e_block_types type;
+      
+
+};
+
+
+#endif

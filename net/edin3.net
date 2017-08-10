@@ -1,0 +1,57 @@
+# Esta netlist descreve um pequeno circuito com tres entradas
+# e uma saida. Hah somente cinco blocos logicos, onde cada bloco
+# logico corresponde a uma 4-LUT (LUT+FF), ou seja, uma Look-Up-Table com
+# quatro entradas e uma saida.
+# Esta netlist assume que o arquivo que descreve a arquitetura define um
+# bloco logico como uma 4-LUT com pinos 0,1,2 e 3 como pinos de entrada e o pino # 4 como sendo de saida. E o pino 5 como sendo o do relogio.
+#
+
+
+.input  i_a
+   pinlist: i_a
+
+.input  i_b
+   pinlist: i_b
+
+.input  i_c
+   pinlist: i_c
+
+.input  i_d
+   pinlist: i_d
+
+.input  i_e
+   pinlist: i_e
+
+.output  out:o_1
+pinlist: o_1
+
+.output  out:o_2
+pinlist: o_2
+
+.clb [b1]
+pinlist: i_a  i_b  open  open  [b1]  open
+subblock: [b1] 0  1  open  open  4  open
+
+.clb [b2]
+pinlist: i_c  [b1]  open  open  [b2]  open
+subblock: [b2] 0  1  open  open  4  open
+
+.clb [b3]
+pinlist: [b1]  [b2]  open  open  [b3]  open
+subblock: [b3] 0  1  open  open  4  open
+
+.clb [b4]
+pinlist: [b3]  i_e  open  open  [b4]  open
+subblock: [b4] 0  1  open  open  4  open
+
+.clb [b5]
+pinlist: i_d  [b4]  open  open  o_1  open
+subblock: [b5] 0  1  open  open  4  open
+
+.clb [b6]
+pinlist: i_e  i_d  i_a  i_c  o_2  open
+subblock: [b6] 0  1  2  3  4  open
+
+
+
+

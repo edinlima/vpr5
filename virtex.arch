@@ -1,0 +1,104 @@
+# NB:  The timing numbers in this architecture file have been modified
+# to comply with our NDA with the foundry providing us with process 
+# information.  The critical path delay output by VPR WILL NOT be accurate,
+# as we have intentionally altered the delays to introduce inaccuracy.
+# The numbers are still reasonable enough to allow CAD experimentation,
+# though.  If you want real timing numbers, you'll have to insert your own
+# process data for the various, R, C, and Tdel entries.
+
+# Architecture with two types of routing segment.  The routing is 
+# fully-populated.  One length of segment is buffered, the other uses pass
+# transistors.
+
+# Uniform channels.  Each pin appears on only one side.
+# io_rat 20
+io_rat 2
+chan_width_io 1
+chan_width_x uniform 1 
+chan_width_y uniform 1
+
+# Cluster of size 4, with 16 logic inputs.
+inpin class: 0 top left bottom right
+inpin class: 1 top left bottom right
+inpin class: 2 top left bottom right
+inpin class: 3 top left bottom right
+inpin class: 4 top left bottom right
+inpin class: 5 top left bottom right
+inpin class: 6 top left bottom right
+inpin class: 7 top left bottom right
+inpin class: 8 top left bottom right
+inpin class: 9 top left bottom right
+inpin class: 10 top left bottom right
+inpin class: 11 top left bottom right
+inpin class: 12 top left bottom right
+inpin class: 13 top left bottom right
+inpin class: 14 top left bottom right
+inpin class: 15 top left bottom right
+outpin class: 16 bottom left top right
+outpin class: 17 left top right bottom
+outpin class: 18 top right bottom left
+outpin class: 19 right bottom left top
+inpin class: 20 global top   # Clock, global -> routed on a special resource.
+
+# Class 0 -> logic cluster inputs, Class 1 -> Outputs, Class 2 -> clock.
+
+subblocks_per_clb 4
+subblock_lut_size 4
+
+#parameters needed only for detailed routing.
+switch_block_type subset
+Fc_type fractional
+Fc_output .045
+Fc_input .01
+Fc_pad 1
+
+# All comments about metal spacing, etc. assumed have been deleted
+# to protect our foundry.  Again, the R, C and Tdel values have been
+# altered from their real values.
+
+segment frequency: 0.22 length: 1 wire_switch: 0 opin_switch: 1 Frac_cb: 1. \
+         Frac_sb: 1. Rmetal: 1.35 Cmetal: 0.4e-15
+segment frequency: 0.67 length: 7 wire_switch: 0 opin_switch: 1 Frac_cb: 0.5 \
+         Frac_sb: 0.5714 Rmetal: 1.35 Cmetal: 0.4e-15
+segment frequency: 0.11 length: longline wire_switch: 0 opin_switch: 1 Frac_cb: 1. \
+         Frac_sb: 1. Rmetal: 1.35 Cmetal: 0.4e-15
+
+# Pass transistor switch.
+
+switch 0  buffered: yes  R: 1600 Cin: 9e-15  Cout: 9e-15 Tdel: 20e-12
+switch 1  buffered: yes  R: 0 Cin: 4e-15  Cout: 9e-15  Tdel: 102e-12
+
+# Logic block output buffer used to drive pass transistor switched wires.
+
+
+# switch type 0: wire_switch.
+# switch type 1: opin_switch.
+# switch type 2: wire to ipin switch added automatically for Detailed Routing in "read_arch.c".
+# switch type 3: delayless switch added automatically for Detailed Routing in "read_arch.c".
+
+# Used only by the area model.
+
+R_minW_nmos 8229
+R_minW_pmos 24800
+
+# Timing info below.  See manual for details.
+
+C_ipin_cblock 4e-15
+T_ipin_cblock 200e-12
+T_ipad 0
+T_opad 0
+T_sblk_opin_to_sblk_ipin 0
+T_clb_ipin_to_sblk_ipin 0
+T_sblk_opin_to_clb_opin 0
+
+# Delays for each of the four sequential and combinational elements
+# in our logic block.  In this case they're all the same.
+
+T_subblock T_comb: 1e-9 T_seq_in: .25e-9 T_seq_out: 1.2e-9
+T_subblock T_comb: 1e-9 T_seq_in: .25e-9 T_seq_out: 1.2e-9
+T_subblock T_comb: 1e-9 T_seq_in: .25e-9 T_seq_out: 1.2e-9
+T_subblock T_comb: 1e-9 T_seq_in: .25e-9 T_seq_out: 1.2e-9
+
+
+
+

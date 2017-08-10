@@ -1,0 +1,60 @@
+.input p_1gat_0_
+pinlist: p_1gat_0_ 
+
+.input p_6gat_3_
+pinlist: p_6gat_3_ 
+
+.input p_7gat_4_
+pinlist: p_7gat_4_ 
+
+.input p_2gat_1_
+pinlist: p_2gat_1_ 
+
+.input p_3gat_2_
+pinlist: p_3gat_2_ 
+
+.output out:p_22gat_10_
+pinlist: p_22gat_10_ 
+
+.output out:p_23gat_9_
+pinlist: p_23gat_9_ 
+
+.clb n_n13
+pinlist: p_6gat_3_ open open open p_3gat_2_ open open open n_n5 open open \
+open n_n13 n_n14 open open n_n13 n_n14 n_n9 n_n5 open 
+subblock: n_n13 0 open open open 16 open 
+subblock: n_n14 4 open open open 17 open 
+subblock: n_n9 8 open open open 18 open 
+subblock: n_n5 12 13 open open 19 open 
+
+.clb n_n16
+pinlist: p_1gat_0_ open open open n_n6 n_n8 open open n_n4 open open open \
+n_n14 n_n16 open open n_n16 n_n0 n_n8 n_n4 open 
+subblock: n_n16 0 open open open 16 open 
+subblock: n_n0 4 5 open open 17 open 
+subblock: n_n8 8 open open open 18 open 
+subblock: n_n4 12 13 open open 19 open 
+
+.clb n_n15
+pinlist: p_2gat_1_ open open open n_n12 n_n9 open open n_n9 n_n15 open open \
+n_n2 open open open n_n15 n_n3 n_n2 n_n6 open 
+subblock: n_n15 0 open open open 16 open 
+subblock: n_n3 4 5 open open 17 open 
+subblock: n_n2 8 9 open open 18 open 
+subblock: n_n6 12 open open open 19 open 
+
+.clb p_23gat_9_
+pinlist: n_n10 open open open n_n7 n_n6 open open n_n3 open open open n_n1 \
+open open open p_23gat_9_ n_n1 n_n7 n_n10 open 
+subblock: p_23gat_9_ 0 open open open 16 open 
+subblock: n_n1 4 5 open open 17 open 
+subblock: n_n7 8 open open open 18 open 
+subblock: n_n10 12 open open open 19 open 
+
+.clb p_22gat_10_
+pinlist: n_n11 open open open p_7gat_4_ open open open n_n0 open open open \
+open open open open p_22gat_10_ n_n12 n_n11 open open 
+subblock: p_22gat_10_ 0 open open open 16 open 
+subblock: n_n12 4 open open open 17 open 
+subblock: n_n11 8 open open open 18 open 
+

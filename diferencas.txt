@@ -1,0 +1,5075 @@
+1c1
+< /*#include <stdlib.h> */
+---
+> /* #include <stdlib.h> */
+3a4,5
+> #include <pthread.h>
+> #include <time.h>
+11,15d12
+< #include "net_delay.h"
+< #include "path_delay.h"
+< #include "timing_place_lookup.h"
+< #include "timing_place.h"
+< 
+19,21c16,17
+< #define SMALL_NET 4    /* Cut off for incremental bounding box updates. */
+<                        /* 4 is fastest -- I checked.                    */
+< 
+---
+> #define SMALL_NET 4		/* Cut off for incremental bounding box updates. */
+> 		       /* 4 is fastest -- I checked.                    */
+28c24
+< enum cost_methods {NORMAL, CHECK};
+---
+> enum cost_methods { NORMAL, CHECK };
+30c26
+< #define FROM 0      /* What block connected to a net has moved? */
+---
+> #define FROM 0			/* What block connected to a net has moved? */
+37c33,38
+< #define EMPTY -1      
+---
+> 
+> 
+> 
+> 
+> 
+> 
+44c45
+< static int *duplicate_pins;    
+---
+> static int *duplicate_pins;
+53,74c54
+< static float *net_cost = NULL, *temp_net_cost = NULL;     /* [0..num_nets-1] */
+< 
+< /* [0..num_nets-1][1..num_pins-1]. What is the value of the timing   */
+< /* driven portion of the cost function. These arrays will be set to  */
+< /* (criticality * delay) for each point to point connection. */
+< static float **point_to_point_timing_cost = NULL;
+< static float **temp_point_to_point_timing_cost = NULL;
+< 
+< 
+< 
+< /* [0..num_nets-1][1..num_pins-1]. What is the value of the delay */
+< /* for each connection in the circuit */
+< static float **point_to_point_delay_cost = NULL;
+< static float **temp_point_to_point_delay_cost = NULL;
+< 
+< 
+< /* [0..num_blocks-1][0..pins_per_clb-1]. Indicates which pin on the net */
+< /* this block corresponds to, this is only required during timing-driven */
+< /* placement. It is used to allow us to update individual connections on */
+< /* each net */
+< static int **net_pin_index = NULL;
+< 
+---
+> static float *net_cost = NULL, *temp_net_cost = NULL;	/* [0..num_nets-1] */
+80c60
+< static struct s_bb *bb_coords = NULL, *bb_num_on_edges = NULL; 
+---
+> static struct s_bb *bb_coords = NULL, *bb_num_on_edges = NULL;
+103d82
+< 
+106,112d84
+<  
+< static const float cross_count[50] = {   /* [0..49] */
+< 1.0,    1.0,    1.0,    1.0828, 1.1536, 1.2206, 1.2823, 1.3385, 1.3991, 1.4493,
+< 1.4974, 1.5455, 1.5937, 1.6418, 1.6899, 1.7304, 1.7709, 1.8114, 1.8519, 1.8924,
+< 1.9288, 1.9652, 2.0015, 2.0379, 2.0743, 2.1061, 2.1379, 2.1698, 2.2016, 2.2334,
+< 2.2646, 2.2958, 2.3271, 2.3583, 2.3895, 2.4187, 2.4479, 2.4772, 2.5064, 2.5356,
+< 2.5610, 2.5864, 2.6117, 2.6371, 2.6625, 2.6887, 2.7148, 2.7410, 2.7671, 2.7933};
+113a86,96
+> static const float cross_count[50] = {	/* [0..49] */
+>   1.0, 1.0, 1.0, 1.0828, 1.1536, 1.2206, 1.2823, 1.3385, 1.3991, 1.4493,
+>   1.4974, 1.5455, 1.5937, 1.6418, 1.6899, 1.7304, 1.7709, 1.8114, 1.8519,
+>   1.8924,
+>   1.9288, 1.9652, 2.0015, 2.0379, 2.0743, 2.1061, 2.1379, 2.1698, 2.2016,
+>   2.2334,
+>   2.2646, 2.2958, 2.3271, 2.3583, 2.3895, 2.4187, 2.4479, 2.4772, 2.5064,
+>   2.5356,
+>   2.5610, 2.5864, 2.6117, 2.6371, 2.6625, 2.6887, 2.7148, 2.7410, 2.7671,
+>   2.7933
+> };
+119c102
+< static void free_unique_pin_list (void); 
+---
+> static void free_unique_pin_list (void);
+125c108
+< static void free_place_regions (int num_regions); 
+---
+> static void free_place_regions (int num_regions);
+127,129c110,114
+< static void alloc_and_load_placement_structs (int place_cost_type, 
+<        int num_regions, float place_cost_exp, float ***old_region_occ_x, 
+<        float ***old_region_occ_y, struct s_placer_opts placer_opts ); 
+---
+> static void alloc_and_load_placement_structs (int place_cost_type,
+> 					      int num_regions,
+> 					      float place_cost_exp,
+> 					      float ***old_region_occ_x,
+> 					      float ***old_region_occ_y);
+132,133c117,118
+<         float **old_region_occ_x, float **old_region_occ_y, 
+<         struct s_placer_opts placer_opts); 
+---
+> 				    float **old_region_occ_x,
+> 				    float **old_region_occ_y);
+138c123
+<             char *pad_loc_file);
+---
+> 			       char *pad_loc_file);
+140c125,126
+< static float comp_bb_cost (int method, int place_cost_type, int num_regions);
+---
+> static void my_initial_placement (enum e_pad_loc_type pad_loc_type,
+> 			       char *pad_loc_file);
+142,159c128
+< static int try_swap (float t, float *cost, float *bb_cost, float *timing_cost, 
+< 		     float rlim, int *pins_on_block,
+< 		     int place_cost_type, float **old_region_occ_x, 
+< 		     float **old_region_occ_y, int num_regions, boolean fixed_pins,
+< 		     enum e_place_algorithm place_algorithm, float timing_tradeoff,
+< 		     float inverse_prev_bb_cost, float inverse_prev_timing_cost,
+< 		     float *delay_cost);
+< 
+< static void check_place (float bb_cost, float timing_cost, int place_cost_type, 
+< 			 int num_regions, enum e_place_algorithm place_algorithm,
+< 			 float delay_cost);
+< 
+< static float starting_t (float *cost_ptr, float *bb_cost_ptr, float *timing_cost_ptr,
+<        int *pins_on_block, int place_cost_type, float **old_region_occ_x, 
+<        float **old_region_occ_y, int num_regions, boolean fixed_pins, 
+<        struct s_annealing_sched annealing_sched, int max_moves, float rlim, 
+<        enum e_place_algorithm place_algorithm, float timing_tradeoff,
+<        float inverse_prev_bb_cost, float inverse_prev_timing_cost, float *delay_cost_ptr);
+---
+> static float comp_cost (int method, int place_cost_type, int num_regions);
+160a130,142
+> static int try_swap (float t, float *cost, float rlim, int *pins_on_block,
+> 		     int place_cost_type, float **old_region_occ_x,
+> 		     float **old_region_occ_y, int num_regions,
+> 		     boolean fixed_pins);
+> 
+> static void check_place (float cost, int place_cost_type, int num_regions);
+> 
+> static float starting_t (float *cost_ptr, int *pins_on_block,
+> 			 int place_cost_type, float **old_region_occ_x,
+> 			 float **old_region_occ_y, int num_regions,
+> 			 boolean fixed_pins,
+> 			 struct s_annealing_sched annealing_sched,
+> 			 int max_moves, float rlim);
+163c145
+<        struct s_annealing_sched annealing_sched); 
+---
+> 		      struct s_annealing_sched annealing_sched);
+168,172c150
+<        annealing_sched);
+< 
+< static int count_connections(void);
+< 
+< static void compute_net_pin_index_values(void);
+---
+> 		      annealing_sched);
+176,178c154
+< static void free_fast_cost_update_structs (void); 
+< 
+< static float recompute_bb_cost (int place_cost_type, int num_regions);
+---
+> static void free_fast_cost_update_structs (void);
+180,187c156
+< static float comp_td_point_to_point_delay (int inet, int ipin);
+< 
+< static void update_td_cost(int b_from, int b_to, int num_of_pins);
+< 
+< static void comp_delta_td_cost(int b_from, int b_to, int num_of_pins, 
+< 			       float *delta_timing, float *delta_delay);
+< 
+< static void comp_td_costs (float *timing_cost, float *connection_delay_sum);
+---
+> static float recompute_cost (int place_cost_type, int num_regions);
+191,192c160,161
+< static void find_to (int x_from, int y_from, int type, float rlim, 
+<          int *x_to, int *y_to);
+---
+> static void find_to (int x_from, int y_from, int type, float rlim,
+> 		     int *x_to, int *y_to);
+196,197c165,166
+< static void update_bb (int inet, struct s_bb *bb_coord_new, struct s_bb 
+<         *bb_edge_new, int xold, int yold, int xnew, int ynew);
+---
+> static void update_bb (int inet, struct s_bb *bb_coord_new, struct s_bb
+> 		       *bb_edge_new, int xold, int yold, int xnew, int ynew);
+199,200c168,169
+< static int find_affected_nets (int *nets_to_update, int *net_block_moved, 
+<         int b_from, int b_to, int num_of_pins);
+---
+> static int find_affected_nets (int *nets_to_update, int *net_block_moved,
+> 			       int b_from, int b_to, int num_of_pins);
+206,207c175,176
+< static void update_region_occ (int inet, struct s_bb*coords, 
+<         int add_or_sub, int num_regions);
+---
+> static void update_region_occ (int inet, struct s_bb *coords,
+> 			       int add_or_sub, int num_regions);
+209,210c178,179
+< static void save_region_occ (float **old_region_occ_x, 
+<         float **old_region_occ_y, int num_regions);
+---
+> static void save_region_occ (float **old_region_occ_x,
+> 			     float **old_region_occ_y, int num_regions);
+213c182
+<         float **old_region_occ_y, int num_regions);
+---
+> 				float **old_region_occ_y, int num_regions);
+215,216c184,185
+< static void get_bb_from_scratch (int inet, struct s_bb *coords, 
+<         struct s_bb *num_on_edges); 
+---
+> static void get_bb_from_scratch (int inet, struct s_bb *coords,
+> 				 struct s_bb *num_on_edges);
+217a187
+> static int is_connected (int b_from, int b_to, int *pins_on_block);
+219c189
+< /*****************************************************************************/
+---
+> static void find_neighbor (int x_from, int y_from, int *x_to, int *y_to);
+220a191
+> /*****************************************************************************/
+222,228c193,195
+< void try_place (struct s_placer_opts placer_opts,struct s_annealing_sched 
+<                 annealing_sched, t_chan_width_dist chan_width_dist, 
+< 		struct s_router_opts router_opts, 
+< 		struct s_det_routing_arch det_routing_arch,
+< 		t_segment_inf *segment_inf,
+< 		t_timing_inf timing_inf,
+< 		t_subblock_data *subblock_data_ptr) {
+---
+> void try_place (struct s_placer_opts placer_opts, struct s_annealing_sched
+> 	   annealing_sched, t_chan_width_dist chan_width_dist)
+> {
+236a204,212
+>   int tot_iter, inner_iter, success_sum, pins_on_block[3];
+>   int move_lim, moves_since_cost_recompute, width_fac;
+>   float t, cost, success_rat, rlim, new_cost;
+>   float oldt;
+>   double av_cost, sum_of_squares, std_dev;
+>   float **old_region_occ_x, **old_region_occ_y;
+>   char msg[BUFSIZE];
+>   boolean fixed_pins;		/* Can pads move or not? */
+>   time_t t_inicio, t_fim;
+238,256c214,218
+<  int tot_iter, inner_iter, success_sum, pins_on_block[3];
+<  int move_lim, moves_since_cost_recompute, width_fac;
+<  float t,  success_rat, rlim, d_max, est_crit;
+<  float cost, timing_cost, bb_cost, new_bb_cost, new_timing_cost;
+<  float delay_cost, new_delay_cost,  place_delay_value;
+<  float inverse_prev_bb_cost, inverse_prev_timing_cost;
+<  float oldt;
+<  double av_cost, av_bb_cost, av_timing_cost, av_delay_cost, sum_of_squares, std_dev;
+<  float **old_region_occ_x, **old_region_occ_y;
+<  char msg[BUFSIZE];
+<  boolean fixed_pins;  /* Can pads move or not? */
+<  int num_connections;
+<  int inet, ipin, outer_crit_iter_count, inner_crit_iter_count, inner_recompute_limit;
+<  float **net_slack, **net_delay;
+<  float crit_exponent;
+<  float first_rlim, final_rlim, inverse_delta_rlim;
+<  float **remember_net_delay_original_ptr; /*used to free net_delay if it is re-assigned*/
+<  
+<  remember_net_delay_original_ptr = NULL; /*prevents compiler warning*/
+---
+>   width_fac = placer_opts.place_chan_width;
+>   if (placer_opts.pad_loc_type == FREE)
+>     fixed_pins = FALSE;
+>   else
+>     fixed_pins = TRUE;
+258,298c220
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<      placer_opts.enable_timing_computations) {
+<    /*do this before the initial placement to avoid messing up the initial placement */
+<      alloc_lookups_and_criticalities(chan_width_dist,
+< 				     router_opts, 
+< 				     det_routing_arch, 
+< 				     segment_inf,
+< 				     timing_inf, 
+< 				     *subblock_data_ptr,
+< 				     &net_delay, &net_slack);
+< 
+<      remember_net_delay_original_ptr = net_delay;
+< 
+< /*#define PRINT_LOWER_BOUND*/
+< #ifdef PRINT_LOWER_BOUND
+<      /*print the crit_path, assuming delay between blocks that are*
+<       *block_dist apart*/
+< 
+<      if (placer_opts.block_dist <= nx)
+<        place_delay_value = delta_clb_to_clb[placer_opts.block_dist][0];
+<      else if (placer_opts.block_dist <= ny)
+<        place_delay_value = delta_clb_to_clb[0][placer_opts.block_dist];
+<      else
+<        place_delay_value = delta_clb_to_clb[nx][ny];
+< 
+<      printf("\nLower bound assuming delay of %g\n", place_delay_value);
+< 
+<      load_constant_net_delay (net_delay, place_delay_value);
+<      load_timing_graph_net_delays(net_delay);
+<      d_max = load_net_slack(net_slack, 0);
+< 
+<      print_critical_path("Placement_Lower_Bound.echo");
+<      print_sink_delays("Placement_Lower_Bound_Sink_Delays.echo");
+< 
+<      /*also print sink delays assuming 0 delay between blocks, 
+<        this tells us how much logic delay is on each path*/
+< 
+<      load_constant_net_delay (net_delay, 0);
+<      load_timing_graph_net_delays(net_delay);
+<      d_max = load_net_slack(net_slack, 0);
+---
+>   init_chan (width_fac, chan_width_dist);
+300,301c222,225
+<      print_sink_delays("Placement_Logic_Sink_Delays.echo");
+< #endif
+---
+>   alloc_and_load_placement_structs (placer_opts.place_cost_type,
+> 				    placer_opts.num_regions,
+> 				    placer_opts.place_cost_exp,
+> 				    &old_region_occ_x, &old_region_occ_y);
+303c227,229
+<  }
+---
+>   
+>   initial_placement (placer_opts.pad_loc_type, placer_opts.pad_loc_file);
+>   init_draw_coords ((float) width_fac);
+305,309c231,232
+<  width_fac = placer_opts.place_chan_width;
+<  if (placer_opts.pad_loc_type == FREE)
+<     fixed_pins = FALSE;
+<  else
+<     fixed_pins = TRUE;
+---
+>   /* Storing the number of pins on each type of block makes the swap routine *
+>    * slightly more efficient.                                                */
+311c234,236
+<  init_chan (width_fac, chan_width_dist); 
+---
+>   pins_on_block[CLB] = pins_per_clb;
+>   pins_on_block[OUTPAD] = 1;
+>   pins_on_block[INPAD] = 1;
+313,389c238
+<  alloc_and_load_placement_structs (placer_opts.place_cost_type, 
+<             placer_opts.num_regions, placer_opts.place_cost_exp,
+<             &old_region_occ_x, &old_region_occ_y, placer_opts); 
+< 
+<  initial_placement (placer_opts.pad_loc_type, placer_opts.pad_loc_file);
+<  init_draw_coords ((float) width_fac);
+< 
+< /* Storing the number of pins on each type of block makes the swap routine *
+<  * slightly more efficient.                                                */
+< 
+<  pins_on_block[CLB] = pins_per_clb;
+<  pins_on_block[OUTPAD] = 1;
+<  pins_on_block[INPAD] = 1;
+< 
+< /* Gets initial cost and loads bounding boxes. */
+< 
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<    bb_cost = comp_bb_cost (NORMAL, placer_opts.place_cost_type, 
+< 				  placer_opts.num_regions);
+< 
+<    crit_exponent = placer_opts.td_place_exp_first; /*this will be modified when rlim starts to change*/
+<    
+<    compute_net_pin_index_values();
+< 
+<    num_connections = count_connections();
+<    printf("\nThere are %d point to point connections in this circuit\n\n", num_connections);
+< 
+<    if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE) {
+<      for (inet = 0; inet<num_nets; inet++)  
+<        for (ipin=1; ipin<net[inet].num_pins; ipin++)
+< 	 timing_place_crit[inet][ipin] = 0;  /*dummy crit values*/
+< 
+<      comp_td_costs(&timing_cost, &delay_cost); /*first pass gets delay_cost, which is used 
+< 						 in criticality computations in the next call
+< 						 to comp_td_costs.*/
+<      place_delay_value = delay_cost / num_connections;  /*used for computing criticalities */
+<      load_constant_net_delay (net_delay, place_delay_value);
+< 
+<    }
+<    else 
+<      place_delay_value = 0;
+< 
+< 
+<    if (placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<      net_delay = point_to_point_delay_cost;/*this keeps net_delay up to date with      *
+< 					    *the same values that the placer is using  *
+< 					    *point_to_point_delay_cost is computed each*
+< 					    *time that comp_td_costs is called, and is *
+< 					    *also updated after any swap is accepted   */
+<    }
+< 
+< 
+<    load_timing_graph_net_delays(net_delay);
+<    d_max = load_net_slack(net_slack, 0);
+<    load_criticalities( placer_opts,  net_slack, d_max, crit_exponent);
+<    outer_crit_iter_count = 1;
+< 
+<    /*now we can properly compute costs  */
+<    comp_td_costs(&timing_cost, &delay_cost); /*also puts proper values into point_to_point_delay_cost*/
+<    
+<    inverse_prev_timing_cost = 1/timing_cost;
+<    inverse_prev_bb_cost = 1/bb_cost;
+<    cost = 1; /*our new cost function uses normalized values of           */
+<              /*bb_cost and timing_cost, the value of cost will be reset  */
+<              /*to 1 at each temperature when *_TIMING_DRIVEN_PLACE is true*/
+<  }
+<  else { /*BOUNDING_BOX_PLACE*/
+<    cost = bb_cost = comp_bb_cost (NORMAL, placer_opts.place_cost_type, 
+< 				  placer_opts.num_regions);
+<    timing_cost = 0;
+<    delay_cost = 0;
+<    place_delay_value = 0;
+<    outer_crit_iter_count =0;
+<    num_connections = 0;
+<    d_max = 0;
+<    crit_exponent = 0;
+---
+>   /* Gets initial cost and loads bounding boxes. */
+391,393c240,241
+<    inverse_prev_timing_cost = 0; /*inverses not used */
+<    inverse_prev_bb_cost = 0;
+<  }
+---
+>   cost = comp_cost (NORMAL, placer_opts.place_cost_type,
+> 		    placer_opts.num_regions);
+395c243
+<  move_lim = (int) (annealing_sched.inner_num * pow(num_blocks,1.3333));
+---
+>   move_lim = (int) (annealing_sched.inner_num * pow (num_blocks, 1.3333));
+397,427c245
+<  if (placer_opts.inner_loop_recompute_divider != 0)
+<    inner_recompute_limit = (int) (0.5 + (float) move_lim / 
+< 				  (float) placer_opts.inner_loop_recompute_divider);
+<  else  /*don't do an inner recompute */
+<    inner_recompute_limit = move_lim + 1;
+<                                         
+< 
+< /* Sometimes I want to run the router with a random placement.  Avoid *
+<  * using 0 moves to stop division by 0 and 0 length vector problems,  *
+<  * by setting move_lim to 1 (which is still too small to do any       *
+<  * significant optimization).                                         */
+< 
+<  if (move_lim <= 0) 
+<     move_lim = 1;  
+< 
+<  rlim = (float) max (nx, ny);
+< 
+<  first_rlim = rlim; /*used in timing-driven placement for exponent computation*/
+<  final_rlim = 1;
+<  inverse_delta_rlim = 1 / (first_rlim - final_rlim);
+< 
+<  t = starting_t (&cost, &bb_cost, &timing_cost, 
+<                  pins_on_block, placer_opts.place_cost_type,
+< 		 old_region_occ_x, old_region_occ_y, placer_opts.num_regions, 
+< 		 fixed_pins, annealing_sched, move_lim, rlim, 
+< 		 placer_opts.place_algorithm, placer_opts.timing_tradeoff,
+< 		 inverse_prev_bb_cost, inverse_prev_timing_cost, &delay_cost);
+<  tot_iter = 0;
+<  moves_since_cost_recompute = 0;
+<  printf("Initial Placement Cost: %g bb_cost: %g td_cost: %g delay_cost: %g\n\n",
+< 	cost, bb_cost, timing_cost, delay_cost);
+---
+>   move_lim /= 3;
+429,436c247,250
+< #ifndef SPEC
+<  printf("%11s  %10s %11s  %11s  %11s %11s  %11s %9s %8s  %7s  %7s  %10s  %7s\n", "T", "Cost", "Av. BB Cost", 
+< 	"Av. TD Cost", "Av Tot Del", "P to P Del", "d_max", "Ac Rate", "Std Dev", "R limit", "Exp", 
+< 	"Tot. Moves", "Alpha");
+<  printf("%11s  %10s %11s  %11s  %11s %11s  %11s %9s %8s  %7s  %7s  %10s  %7s\n", "--------", "----------", 
+< 	"-----------", "-----------", "---------", "----------", "-----", "-------", "-------",  "-------", 
+< 	 "-------","----------", "-----");
+< #endif
+---
+>   /* Sometimes I want to run the router with a random placement.  Avoid *
+>    * using 0 moves to stop division by 0 and 0 length vector problems,  *
+>    * by setting move_lim to 1 (which is still too small to do any       *
+>    * significant optimization).                                         */
+438,448c252,253
+<  sprintf(msg,"Initial Placement.  Cost: %g  BB Cost: %g  TD Cost %g  Delay Cost: %g "
+< 	 "\t d_max %g Channel Factor: %d",
+<    cost, bb_cost, timing_cost, delay_cost, d_max, width_fac);
+<  update_screen(MAJOR, msg, PLACEMENT, FALSE);
+< 
+<  while (exit_crit(t, cost, annealing_sched) == 0) {
+< 
+<    if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<        placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<      cost = 1;
+<    }
+---
+>   if (move_lim <= 0)
+>     move_lim = 1;
+450,455c255
+<     av_cost = 0.;
+<     av_bb_cost = 0.;
+<     av_delay_cost = 0.;
+<     av_timing_cost = 0.;
+<     sum_of_squares = 0.;
+<     success_sum = 0;
+---
+>   rlim = (float) max (nx, ny);
+457,458c257,260
+<     if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+< 	placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+---
+>   t = starting_t (&cost, pins_on_block, placer_opts.place_cost_type,
+> 		  old_region_occ_x, old_region_occ_y,
+> 		  placer_opts.num_regions, fixed_pins, annealing_sched,
+> 		  move_lim, rlim);
+460,502c262,266
+<       if (outer_crit_iter_count >= placer_opts.recompute_crit_iter ||
+< 	  placer_opts.inner_loop_recompute_divider != 0) {
+< #ifdef VERBOSE
+< 	printf("Outer Loop Recompute Criticalities\n");
+< #endif
+< 	place_delay_value = delay_cost / num_connections;
+< 	 
+< 	if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE)
+< 	  load_constant_net_delay (net_delay, place_delay_value);
+< 	/*note, for path_based, the net delay is not updated since it is current,
+< 	 *because it accesses point_to_point_delay array */
+< 
+< 	load_timing_graph_net_delays(net_delay);
+< 	d_max = load_net_slack(net_slack, 0);
+< 	load_criticalities( placer_opts, net_slack, d_max, crit_exponent);
+< 	/*recompute costs from scratch, based on new criticalities*/
+< 	comp_td_costs(&timing_cost, &delay_cost); 
+< 	outer_crit_iter_count = 0;
+<       } 
+<       outer_crit_iter_count ++;
+< 
+<       /*at each temperature change we update these values to be used     */
+<       /*for normalizing the tradeoff between timing and wirelength (bb)  */
+<       inverse_prev_bb_cost = 1/bb_cost;
+<       inverse_prev_timing_cost = 1/timing_cost;
+<     }
+< 
+<     inner_crit_iter_count = 1;
+< 
+<     for (inner_iter=0; inner_iter < move_lim; inner_iter++) {
+<       if (try_swap(t, &cost, &bb_cost, &timing_cost, 
+< 	     rlim, pins_on_block, placer_opts.place_cost_type,
+<              old_region_occ_x, old_region_occ_y, placer_opts.num_regions,
+<              fixed_pins, placer_opts.place_algorithm, 
+< 	     placer_opts.timing_tradeoff, inverse_prev_bb_cost, 
+< 	     inverse_prev_timing_cost, &delay_cost) == 1) {
+< 	success_sum++;
+< 	av_cost += cost;
+< 	av_bb_cost += bb_cost;
+< 	av_timing_cost += timing_cost;
+< 	av_delay_cost += delay_cost;
+< 	sum_of_squares += cost * cost;
+<       }
+---
+>  
+>   printf ("Temperatura inicial : %f\n", t);
+>   tot_iter = 0;
+>   moves_since_cost_recompute = 0;
+>   printf ("Initial placement cost = %g\n\n", cost);
+504,505c268,279
+<       if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+< 	  placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+---
+>   #ifndef SPEC
+>   printf ("%11s  %10s  %7s  %7s  %7s  %10s  %7s\n", "T", "Av. Cost",
+> 	  "Ac Rate", "Std Dev", "R limit", "Tot. Moves", "Alpha");
+>   printf ("%11s  %10s  %7s  %7s  %7s  %10s  %7s\n", "--------",
+> 	  "--------", "-------", "-------", "-------", "----------", "-----");
+>   #endif
+> 
+>   sprintf (msg, "Initial Placement.  Cost: %g.  Channel Factor: %d",
+> 	   cost, width_fac);
+>   update_screen (MAJOR, msg, PLACEMENT, FALSE);
+>   
+>   t_inicio = time(NULL);
+507,508c281,286
+< 	if (inner_crit_iter_count >= inner_recompute_limit 
+< 	    && inner_iter != move_lim-1) { /*on last iteration don't recompute*/
+---
+>   while (exit_crit (t, cost, annealing_sched) == 0) {
+>     av_cost = 0.;
+>     sum_of_squares = 0.;
+>     success_sum = 0;
+>     
+>     
+510,524c288,293
+< 	  inner_crit_iter_count = 0;
+< #ifdef VERBOSE
+< 	  printf("Inner Loop Recompute Criticalities\n");
+< #endif
+< 	  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE) {
+< 	    place_delay_value = delay_cost / num_connections;
+< 	    load_constant_net_delay (net_delay, place_delay_value);
+< 	  }
+< 	  
+< 	  load_timing_graph_net_delays(net_delay);
+< 	  d_max = load_net_slack(net_slack, 0);
+< 	  load_criticalities( placer_opts, net_slack, d_max, crit_exponent);
+< 	  comp_td_costs(&timing_cost, &delay_cost); 
+< 	}
+< 	inner_crit_iter_count ++;
+---
+>     for (inner_iter = 0; inner_iter < move_lim; inner_iter++) {
+>       if (try_swap(t, &cost, rlim, pins_on_block,placer_opts.place_cost_type, old_region_occ_x,
+> 	   			old_region_occ_y, placer_opts.num_regions, fixed_pins) == 1) {
+> 			success_sum++;
+> 			av_cost += cost;
+> 			sum_of_squares += cost * cost;
+526,533c295,300
+< 
+< #ifdef VERBOSE
+<       printf("t = %g  cost = %g   bb_cost = %g timing_cost = %g move = %d dmax = %g\n",
+< 	     t, cost, bb_cost, timing_cost, inner_iter, d_max);
+<       if (fabs(bb_cost - comp_bb_cost(CHECK, placer_opts.place_cost_type, 
+< 				      placer_opts.num_regions)) > bb_cost * ERROR_TOL) 
+< 	exit(1);
+< #endif 
+---
+>       #ifdef VERBOSE
+>       printf ("t = %g  cost = %g   move = %d\n", t, cost, inner_iter);
+>       if (fabs(cost -  comp_cost (CHECK, placer_opts.place_cost_type,
+> 		      placer_opts.num_regions)) > cost * ERROR_TOL)
+> 			exit (1);
+>       #endif
+536,540c303,307
+< /* Lines below prevent too much round-off error from accumulating *
+<  * in the cost over many iterations.  This round-off can lead to  *
+<  * error checks failing because the cost is different from what   *
+<  * you get when you recompute from scratch.                       */
+<  
+---
+>     /* Lines below prevent too much round-off error from accumulating *
+>      * in the cost over many iterations.  This round-off can lead to  *
+>      * error checks failing because the cost is different from what   *
+>      * you get when you recompute from scratch.                       */
+> 
+543,571c310,318
+<        new_bb_cost = recompute_bb_cost (placer_opts.place_cost_type, 
+<                      placer_opts.num_regions);       
+<        if (fabs(new_bb_cost - bb_cost) > bb_cost * ERROR_TOL) {
+<           printf("Error in try_place:  new_bb_cost = %g, old bb_cost = %g.\n",
+<               new_bb_cost, bb_cost);
+<           exit (1);
+<        }
+<        bb_cost = new_bb_cost;
+< 
+<        if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<            placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+< 	 comp_td_costs(&new_timing_cost, &new_delay_cost);
+< 	 if (fabs(new_timing_cost - timing_cost) > timing_cost * ERROR_TOL) {
+< 	   printf("Error in try_place:  new_timing_cost = %g, old timing_cost = %g.\n",
+< 		  new_timing_cost, timing_cost);
+< 	   exit (1);
+< 	 }
+< 	 if (fabs(new_delay_cost - delay_cost) > delay_cost * ERROR_TOL) {
+< 	   printf("Error in try_place:  new_delay_cost = %g, old delay_cost = %g.\n",
+< 		  new_delay_cost, delay_cost);
+< 	   exit (1);
+< 	 }
+< 	 timing_cost = new_timing_cost;
+<        }
+< 
+<        if (placer_opts.place_algorithm ==BOUNDING_BOX_PLACE) {
+< 	 cost = new_bb_cost;
+<        }
+<        moves_since_cost_recompute = 0;
+---
+>       new_cost = recompute_cost (placer_opts.place_cost_type, placer_opts.num_regions);
+>       if (fabs (new_cost - cost) > cost * ERROR_TOL) {
+> 			printf ("Error in try_place:  new_cost = %g, old cost = %g.\n",
+> 			new_cost, cost);
+> 			exit (1);
+>       }
+> 
+>       cost = new_cost;
+>       moves_since_cost_recompute = 0;
+575c322
+<     success_rat = ((float) success_sum)/ move_lim;
+---
+>     success_rat = ((float) success_sum) / move_lim;
+577,586c324,326
+<        av_cost = cost;
+<        av_bb_cost = bb_cost;
+<        av_timing_cost = timing_cost;
+<        av_delay_cost = delay_cost;
+<     }
+<     else {
+<        av_cost /= success_sum;
+<        av_bb_cost /= success_sum;
+<        av_timing_cost /= success_sum;
+<        av_delay_cost /= success_sum;
+---
+>       av_cost = cost;
+>     } else {
+>       av_cost /= success_sum;
+590,594c330,333
+< #ifndef SPEC
+<     printf("%11.5g  %10.6g %11.6g  %11.6g  %11.6g %11.6g %11.4g %9.4g %8.3g  %7.4g  %7.4g  %10d  ",t, av_cost, 
+< 	   av_bb_cost, av_timing_cost, av_delay_cost, place_delay_value, d_max, success_rat, std_dev, 
+< 	   rlim, crit_exponent,tot_iter);
+< #endif
+---
+>     #ifndef SPEC
+>     printf ("%11.5g  %10.6g  %7.4g  %7.3g  %7.4g  %10d  ", t,
+> 	    av_cost, success_rat, std_dev, rlim, tot_iter);
+>     #endif
+596c335
+<     oldt = t;  /* for finding and printing alpha. */
+---
+>     oldt = t;			/* for finding and printing alpha. */
+599,601c338,340
+< #ifndef SPEC
+<     printf("%7.4g\n",t/oldt);
+< #endif
+---
+>     #ifndef SPEC
+>     printf ("%7.4g\n", t / oldt);
+>     #endif
+603,605c342,343
+<     sprintf(msg,"Cost: %g  BB Cost %g  TD Cost %g  Temperature: %g  d_max: %g",cost, 
+< 	    bb_cost, timing_cost, t, d_max);
+<     update_screen(MINOR, msg, PLACEMENT, FALSE);
+---
+>     sprintf (msg, "Cost: %g.  Temperature: %g", cost, t);
+>     update_screen (MINOR, msg, PLACEMENT, FALSE);
+608,674c346,351
+<     if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+< 	placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<       crit_exponent = (1 - (rlim - final_rlim) * inverse_delta_rlim)*
+< 	(placer_opts.td_place_exp_last - placer_opts.td_place_exp_first) + 
+< 	placer_opts.td_place_exp_first;
+<     }
+< #ifdef VERBOSE 
+<  dump_clbs();
+< #endif
+<  }
+< 
+<  t = 0;   /* freeze out */
+<  av_cost = 0.;
+<  av_bb_cost = 0.;
+<  av_timing_cost = 0.;
+<  sum_of_squares = 0.;
+<  av_delay_cost = 0.;
+<  success_sum = 0;
+< 
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<    /*at each temperature change we update these values to be used     */
+<    /*for normalizing the tradeoff between timing and wirelength (bb)  */
+<    if (outer_crit_iter_count >= placer_opts.recompute_crit_iter ||
+<        placer_opts.inner_loop_recompute_divider != 0) {
+< 
+< #ifdef VERBOSE
+<      printf("Outer Loop Recompute Criticalities\n");
+< #endif
+<      place_delay_value = delay_cost / num_connections;
+< 
+<      if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE)
+<        load_constant_net_delay (net_delay, place_delay_value);
+< 
+<      load_timing_graph_net_delays(net_delay);
+<      d_max = load_net_slack(net_slack, 0);
+<      load_criticalities( placer_opts, net_slack, d_max, crit_exponent); 
+<      /*recompute criticaliies */
+<      comp_td_costs(&timing_cost, &delay_cost);  
+<      outer_crit_iter_count = 0;
+<    }
+<    outer_crit_iter_count ++;
+< 
+<    inverse_prev_bb_cost = 1/(bb_cost);
+<    inverse_prev_timing_cost = 1/(timing_cost);
+<  }
+< 
+<  inner_crit_iter_count = 1;
+< 
+<  for (inner_iter=0; inner_iter < move_lim; inner_iter++) {
+<    if (try_swap(t, &cost, &bb_cost, &timing_cost, 
+< 	  rlim, pins_on_block, placer_opts.place_cost_type, 
+<           old_region_occ_x, old_region_occ_y, placer_opts.num_regions,
+<           fixed_pins, placer_opts.place_algorithm, placer_opts.timing_tradeoff,
+< 	  inverse_prev_bb_cost, inverse_prev_timing_cost, &delay_cost) == 1) {
+<      success_sum++;
+<      av_cost += cost;
+<      av_bb_cost += bb_cost;
+<      av_delay_cost += delay_cost;
+<      av_timing_cost += timing_cost;
+<      sum_of_squares += cost * cost;
+< 
+<      if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+< 	 placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+< 
+< 	 if (inner_crit_iter_count >= inner_recompute_limit
+< 	      && inner_iter != move_lim-1) {
+---
+>     #ifdef VERBOSE
+>     dump_clbs ();
+>     #endif
+>   } // end while
+>   
+>   //printf("terminei o posicionamento. Temperatura final %g\n",t);
+676,682c353,367
+< 	   inner_crit_iter_count = 0;
+< #ifdef VERBOSE
+< 	   printf("Inner Loop Recompute Criticalities\n");
+< #endif
+< 	   if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE) {
+< 	     place_delay_value = delay_cost / num_connections;
+< 	     load_constant_net_delay (net_delay, place_delay_value);
+---
+>  
+>   t = 0;			// freeze out
+>   av_cost = 0.;
+>   sum_of_squares = 0.;
+>   success_sum = 0;
+> 
+>   for (inner_iter = 0; inner_iter < move_lim; inner_iter++)
+>     {
+>       if (try_swap(t, &cost, rlim, pins_on_block, placer_opts.place_cost_type,
+> 	         old_region_occ_x, old_region_occ_y, placer_opts.num_regions,
+> 	         fixed_pins) == 1)
+> 	   {
+> 	      success_sum++;
+> 	      av_cost += cost;
+> 	      sum_of_squares += cost * cost;
+684,718c369,382
+< 	  
+< 	   load_timing_graph_net_delays(net_delay);
+< 	   d_max = load_net_slack(net_slack, 0);
+< 	   load_criticalities( placer_opts, net_slack, d_max, crit_exponent);
+< 	   comp_td_costs(&timing_cost, &delay_cost); 
+< 	 }
+< 	 inner_crit_iter_count ++;
+<      }
+<    }
+< #ifdef VERBOSE 
+<    printf("t = %g  cost = %g   move = %d\n",t, cost, tot_iter);
+< #endif
+<  }
+<  tot_iter += move_lim;
+<  success_rat = ((float) success_sum) / move_lim;
+<  if (success_sum == 0) {
+<     av_cost = cost;
+<     av_bb_cost = bb_cost;
+<     av_delay_cost = delay_cost;
+<     av_timing_cost = timing_cost;
+<  }
+<  else {
+<     av_cost /= success_sum;
+<     av_bb_cost /= success_sum;
+<     av_delay_cost /= success_sum;
+<     av_timing_cost /= success_sum;
+<  }
+< 
+<  std_dev = get_std_dev (success_sum, sum_of_squares, av_cost);
+< 
+< 
+< #ifndef SPEC
+<     printf("%11.5g  %10.6g %11.6g  %11.6g  %11.6g %11.6g %11.4g %9.4g %8.3g  %7.4g  %7.4g  %10d  \n\n",t, av_cost, 
+< 	   av_bb_cost, av_timing_cost, av_delay_cost, place_delay_value, d_max, success_rat, std_dev, 
+< 	   rlim, crit_exponent, tot_iter);
+---
+>       #ifdef VERBOSE
+>       printf ("t = %g  cost = %g   move = %d\n", t, cost, tot_iter);
+>       #endif
+>     }
+>      tot_iter += move_lim;
+>      success_rat = ((float) success_sum) / move_lim;
+>   if (success_sum == 0)
+>     {
+>       av_cost = cost;
+>     }
+>   else
+>     {
+>       av_cost /= success_sum;
+>     }
+720c384
+< #endif
+---
+>   std_dev = get_std_dev (success_sum, sum_of_squares, av_cost);
+722,727c386
+< #ifdef VERBOSE 
+<  dump_clbs();
+< #endif
+<  
+<  check_place(bb_cost, timing_cost, placer_opts.place_cost_type, placer_opts.num_regions,
+< 	     placer_opts.place_algorithm, delay_cost);
+---
+> 	
+729,737d387
+<  if (placer_opts.enable_timing_computations &&
+<      placer_opts.place_algorithm == BOUNDING_BOX_PLACE) {
+<    /*need this done since the timing data has not been kept up to date*
+<     *in bounding_box mode */
+<    for (inet = 0; inet<num_nets; inet++)  
+<      for (ipin=1; ipin<net[inet].num_pins; ipin++)
+<        timing_place_crit[inet][ipin] = 0;  /*dummy crit values*/
+<    comp_td_costs(&timing_cost, &delay_cost); /*computes point_to_point_delay_cost*/
+<  }
+739,753c389,391
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<      placer_opts.enable_timing_computations) {
+<    net_delay = point_to_point_delay_cost;/*this makes net_delay up to date with    *
+< 					  *the same values that the placer is using*/
+<    load_timing_graph_net_delays(net_delay);
+<    est_crit = load_net_slack(net_slack, 0);
+< #ifdef PRINT_SINK_DELAYS
+<    print_sink_delays("Placement_Sink_Delays.echo");
+< #endif
+< #ifdef PRINT_NET_SLACKS
+<    print_net_slack("Placement_Net_Slacks.echo", net_slack);
+< #endif
+< #ifdef PRINT_PLACE_CRIT_PATH
+<    print_critical_path("Placement_Crit_Path.echo");
+---
+> #ifndef SPEC
+>   printf ("%11.5g  %10.6g  %7.4g  %7.3g  %7.4g  %10d \n\n", t, av_cost,
+> 	  success_rat, std_dev, rlim, tot_iter);
+755,756d392
+<    printf("Placement Estimated Crit Path Delay: %g\n\n", est_crit);
+<  }
+758,766c394,395
+< 
+<  sprintf(msg,"Placement. Cost: %g  bb_cost: %g td_cost: %g Channel Factor: %d d_max: %g",
+< 	 cost, bb_cost, timing_cost, width_fac, d_max);
+<  printf("Placement. Cost: %g  bb_cost: %g  td_cost: %g  delay_cost: %g.\n",
+< 	cost, bb_cost, timing_cost,delay_cost);
+<  update_screen(MAJOR, msg, PLACEMENT, FALSE);
+< 
+< #ifdef SPEC
+<  printf ("Total moves attempted: %d.0\n", tot_iter);
+---
+> #ifdef VERBOSE
+>   dump_clbs ();
+768,796d396
+<  
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<      placer_opts.enable_timing_computations) {
+< 
+<    net_delay = remember_net_delay_original_ptr;
+< 
+<    free_placement_structs (placer_opts.place_cost_type, placer_opts.num_regions,
+< 			   old_region_occ_x, old_region_occ_y, placer_opts); 
+<    free_lookups_and_criticalities( &net_delay, &net_slack);
+<  }
+< }
+< 
+< static int count_connections() {
+<   /*only count non-global connections*/
+< 
+<   int count, inet;
+< 
+<   count = 0;
+< 
+<   for (inet = 0; inet < num_nets; inet ++) {
+< 
+<     if (is_global[inet]) 
+<       continue;
+< 
+<     count += (net[inet].num_pins - 1);
+<   }
+<   return(count);
+< }
+798,800d397
+< static void compute_net_pin_index_values() {
+<   /*computes net_pin_index array, this array allows us to quickley*/
+<   /*find what pin on the net a block pin corresponds to */
+802,807c399,405
+<   int inet, netpin, blk, iblk, ipin;
+< 
+<   /*initialize values to OPEN */
+<   for (iblk=0; iblk<num_blocks; iblk++)
+<     for (ipin=0; ipin < pins_per_clb; ipin++)
+<       net_pin_index[iblk][ipin] = OPEN;
+---
+>   t_fim= time(NULL);
+>   printf("Tempo de execucao = %f segundos.\n",difftime(t_fim, t_inicio));	
+>   check_place (cost, placer_opts.place_cost_type, placer_opts.num_regions);
+>   sprintf (msg, "Final Placement.  Cost: %g.  Channel Factor: %d", cost,
+> 	   width_fac);
+>   printf ("Final Placement cost: %g\n", cost);
+>   update_screen (MAJOR, msg, PLACEMENT, FALSE);
+809c407
+<   for (inet=0; inet<num_nets; inet++) {
+---
+> 		  
+811,812c409,411
+<     if (is_global[inet]) 
+<       continue;
+---
+>   #ifdef SPEC
+>   printf ("Total moves attempted: %d.0\n", tot_iter);
+>   #endif
+814,825c413,416
+<     for(netpin=0;netpin<net[inet].num_pins;netpin++) {
+<       blk=net[inet].blocks[netpin];
+<       if (block[blk].type == INPAD)
+< 	net_pin_index[blk][0] = 0; /*there is only one block pin,so it is 0, and it */
+<                                    /*is driving the net since this is an INPAD*/
+<       else if (block[blk].type == OUTPAD) 
+< 	net_pin_index[blk][0] = netpin;  /*there is only one block pin,it is 0*/
+<       else {
+< 	net_pin_index[blk][net[inet].blk_pin[netpin]] = netpin;
+<       }  
+<     }  
+<   }
+---
+>   free_placement_structs (placer_opts.place_cost_type,
+> 			  placer_opts.num_regions, old_region_occ_x,
+> 			  old_region_occ_y);
+> 			  
+828,829c419,421
+< 
+< static double get_std_dev (int n, double sum_x_squared, double av_x) {
+---
+> static double
+> get_std_dev (int n, double sum_x_squared, double av_x)
+> {
+836,838c428,430
+<  double std_dev;
+<  
+<  if (n <= 1) 
+---
+>   double std_dev;
+> 
+>   if (n <= 1)
+840c432
+<  else 
+---
+>   else
+843c435
+<  if (std_dev > 0.)        /* Very small variances sometimes round negative */
+---
+>   if (std_dev > 0.)		/* Very small variances sometimes round negative */
+845c437
+<  else
+---
+>   else
+848c440
+<  return (std_dev);
+---
+>   return (std_dev);
+850a443,445
+> static void
+> update_rlim (float *rlim, float success_rat)
+> {
+852,855c447,448
+< static void update_rlim (float *rlim, float success_rat) {
+< 
+<  /* Update the range limited to keep acceptance prob. near 0.44.  Use *
+<   * a floating point rlim to allow gradual transitions at low temps.  */
+---
+>   /* Update the range limited to keep acceptance prob. near 0.44.  Use *
+>    * a floating point rlim to allow gradual transitions at low temps.  */
+857c450
+<  float upper_lim;
+---
+>   float upper_lim;
+859,862c452,455
+<  *rlim = (*rlim) * (1. - 0.44 + success_rat);
+<  upper_lim = max(nx,ny);
+<  *rlim = min(*rlim,upper_lim);
+<  *rlim = max(*rlim,1.);  
+---
+>   *rlim = (*rlim) * (1. - 0.44 + success_rat);
+>   upper_lim = max (nx, ny);
+>   *rlim = min (*rlim, upper_lim);
+>   *rlim = max (*rlim, 1.);
+866,868c459,462
+< 
+< static void update_t (float *t, float std_dev, float rlim, 
+<      float success_rat, struct s_annealing_sched annealing_sched) {
+---
+> static void
+> update_t (float *t, float std_dev, float rlim, float success_rat,
+> 	  struct s_annealing_sched annealing_sched)
+> {
+874c468
+<  if (annealing_sched.type == USER_SCHED) {
+---
+>   if (annealing_sched.type == USER_SCHED) {
+876c470
+<  }
+---
+>   }
+892c486
+<  else {                             /* AUTO_SCHED */
+---
+>   else {			/* AUTO_SCHED */
+894,897c488,494
+<        *t = (*t) * 0.5; 
+<     }
+<     else if (success_rat > 0.8) {
+<        *t = (*t) * 0.9;
+---
+>       *t = (*t) * 0.5;
+>     } else if (success_rat > 0.8) {
+>       *t = (*t) * 0.9;
+>     } else if (success_rat > 0.15 || rlim > 1.) {
+>       *t = (*t) * 0.95;
+>     } else {
+>       *t = (*t) * 0.8;
+899,905c496
+<     else if (success_rat > 0.15 || rlim > 1.) {
+<        *t = (*t) * 0.95;
+<     }
+<     else {
+<        *t = (*t) * 0.8; 
+<     }
+<  }
+---
+>   }
+908,910c499,501
+< 
+< static int exit_crit (float t, float cost, struct s_annealing_sched 
+<          annealing_sched) {
+---
+> static int
+> exit_crit (float t, float cost, struct s_annealing_sched annealing_sched)
+> {
+914c505
+<  if (annealing_sched.type == USER_SCHED) {
+---
+>   if (annealing_sched.type == USER_SCHED) {
+916,919c507,509
+<        return(1);
+<     }
+<     else {
+<        return(0);
+---
+>       return (1);
+>     } else {
+>       return (0);
+921,923c511
+<  } 
+<  
+<  /* Automatic annealing schedule */
+---
+>   }
+925,931c513
+<  if (t < 0.005 * cost / num_nets) {
+<     return(1);
+<  }
+<  else {
+<     return(0);
+<  }
+< }
+---
+>   /* Automatic annealing schedule */
+932a515,520
+>   if (t < 0.005 * cost / num_nets) {
+>     return (1);
+>   } else {
+>     return (0);
+>   }
+> }
+934,939c522,528
+< static float starting_t (float *cost_ptr, float *bb_cost_ptr, float *timing_cost_ptr,
+<     int *pins_on_block, int place_cost_type, float **old_region_occ_x, 
+<     float **old_region_occ_y, int num_regions, boolean fixed_pins, 
+<     struct s_annealing_sched annealing_sched, int max_moves, float rlim, 
+<     enum e_place_algorithm place_algorithm, float timing_tradeoff,
+<     float inverse_prev_bb_cost, float inverse_prev_timing_cost, float *delay_cost_ptr) {
+---
+> static float
+> starting_t (float *cost_ptr, int *pins_on_block,
+> 	    int place_cost_type, float **old_region_occ_x,
+> 	    float **old_region_occ_y, int num_regions, boolean fixed_pins,
+> 	    struct s_annealing_sched annealing_sched, int max_moves,
+> 	    float rlim)
+> {
+943,944c532,533
+<  int i, num_accepted, move_lim;
+<  double std_dev, av, sum_of_squares;  /* Double important to avoid round off */
+---
+>   int i, num_accepted, move_lim;
+>   double std_dev, av, sum_of_squares;	/* Double important to avoid round off */
+946,947c535,536
+<  if (annealing_sched.type == USER_SCHED) 
+<     return (annealing_sched.init_t);  
+---
+>   if (annealing_sched.type == USER_SCHED)
+>     return (annealing_sched.init_t);
+949c538
+<  move_lim = min (max_moves, num_blocks);
+---
+>   move_lim = min (max_moves, num_blocks);
+951,953c540,542
+<  num_accepted = 0;
+<  av = 0.;
+<  sum_of_squares = 0.;
+---
+>   num_accepted = 0;
+>   av = 0.;
+>   sum_of_squares = 0.;
+957,968c546,554
+<  for (i=0;i<move_lim;i++) {
+<     if (try_swap (1.e30, cost_ptr, bb_cost_ptr, timing_cost_ptr, rlim, 
+<               pins_on_block, place_cost_type,
+<               old_region_occ_x, old_region_occ_y, num_regions, 
+<               fixed_pins, place_algorithm, timing_tradeoff,
+< 	      inverse_prev_bb_cost, inverse_prev_timing_cost,
+< 	      delay_cost_ptr) == 1) {
+<        num_accepted++; 
+<        av += *cost_ptr;
+<        sum_of_squares += *cost_ptr * (*cost_ptr);
+<     }   
+<  }   
+---
+>   for (i = 0; i < move_lim; i++) {
+>     if (try_swap
+> 	(1.e30, cost_ptr, rlim, pins_on_block, place_cost_type,
+> 	 old_region_occ_x, old_region_occ_y, num_regions, fixed_pins) == 1) {
+>       num_accepted++;
+>       av += *cost_ptr;
+>       sum_of_squares += *cost_ptr * (*cost_ptr);
+>     }
+>   }
+972c558
+<  if (num_accepted != 0)
+---
+>   if (num_accepted != 0)
+974c560
+<  else 
+---
+>   else
+976,978c562,564
+<  
+<  std_dev = get_std_dev (num_accepted, sum_of_squares, av);
+<  
+---
+> 
+>   std_dev = get_std_dev (num_accepted, sum_of_squares, av);
+> 
+980,983c566,569
+<  if (num_accepted != move_lim) {
+<     printf("Warning:  Starting t: %d of %d configurations accepted.\n",
+<         num_accepted, move_lim);
+<  }
+---
+>   if (num_accepted != move_lim) {
+>     printf ("Warning:  Starting t: %d of %d configurations accepted.\n",
+> 	    num_accepted, move_lim);
+>   }
+987,988c573,574
+<     printf("std_dev: %g, average cost: %g, starting temp: %g\n",
+<         std_dev, av, 20. * std_dev);
+---
+>   printf ("std_dev: %g, average cost: %g, starting temp: %g\n",
+> 	  std_dev, av, 20. * std_dev);
+991c577,578
+<  return (20. * std_dev); 
+---
+>   return (20.0 * std_dev);
+>   //return (2.824686459 * std_dev);
+994a582,603
+> static int
+> sort_from (boolean fixed_pins)
+> {
+> 
+>   int b_from = my_irand (num_blocks - 1);
+> 
+> /* If the pins are fixed we never move them from their initial    *
+>  * random locations.  The code below could be made more efficient *
+>  * by using the fact that pins appear first in the block list,    *
+>  * but this shouldn't cause any significant slowdown and won't be *
+>  * broken if I ever change the parser so that the pins aren't     *
+>  * necessarily at the start of the block list.                    */
+> 
+>   if (fixed_pins == TRUE) {
+>     while (block[b_from].type != CLB) {
+>       b_from = my_irand (num_blocks - 1);
+>     }
+>   }
+> 
+>   return b_from;
+> 
+> }
+996,1002c605,608
+< static int try_swap (float t, float *cost, float *bb_cost, float *timing_cost, 
+< 		     float rlim, int *pins_on_block, 
+< 		     int place_cost_type, float **old_region_occ_x, 
+< 		     float **old_region_occ_y, int num_regions, boolean fixed_pins,
+< 		     enum e_place_algorithm place_algorithm, float timing_tradeoff,
+< 		     float inverse_prev_bb_cost, float inverse_prev_timing_cost,
+< 		     float *delay_cost) {
+---
+> static int try_swap (float t, float *cost, float rlim, int *pins_on_block,
+> 	  int place_cost_type, float **old_region_occ_x,
+> 	  float **old_region_occ_y, int num_regions, boolean fixed_pins)
+> {
+1011,1017c617,624
+<  int b_from, x_to, y_to, x_from, y_from, b_to; 
+<  int off_from, k, inet, keep_switch, io_num, num_of_pins;
+<  int num_nets_affected, bb_index;
+<  float delta_c, bb_delta_c, timing_delta_c, delay_delta_c, newcost;
+<  static struct s_bb *bb_coord_new = NULL;
+<  static struct s_bb *bb_edge_new = NULL;
+<  static int *nets_to_update = NULL, *net_block_moved = NULL;
+---
+>   int b_from, x_to, y_to, x_from, y_from, b_to;
+>   int off_from, k, inet, keep_switch, io_num, num_of_pins;
+>   int num_nets_affected, bb_index;
+>   float delta_c, newcost;
+>   static struct s_bb *bb_coord_new = NULL;
+>   static struct s_bb *bb_edge_new = NULL;
+>   static int *nets_to_update = NULL, *net_block_moved = NULL;
+>   static int *x_to_temp, *y_to_temp;
+1021,1023c628,630
+<  if (bb_coord_new == NULL) {
+<     bb_coord_new = (struct s_bb *) my_malloc (2 * pins_per_clb * 
+<           sizeof (struct s_bb));
+---
+>   if (bb_coord_new == NULL) {
+>     bb_coord_new = (struct s_bb *) my_malloc (2 * pins_per_clb *
+> 					      sizeof (struct s_bb));
+1025c632
+<           sizeof (struct s_bb));
+---
+> 					     sizeof (struct s_bb));
+1028c635,637
+<  }
+---
+>     x_to_temp = (int *) my_malloc(10 * sizeof(int));
+>     y_to_temp = (int *) my_malloc(10 * sizeof(int));
+>   }
+1030,1031c639,652
+<     
+<  b_from = my_irand(num_blocks - 1);
+---
+>   keep_switch = 0;
+>   int try_count = 0;
+>   int fator = 2;
+>   int finded = 0;
+> 
+>   if (t > 2.0 && t < 50)
+>     fator = 1;
+>   else if (t <= 2.0 && t > 0.005 )
+>     fator = 4;
+>   else if (t <= 0.005 && t > 0.0025)
+>     fator = 2;
+>   else if (t <= 0.0025)
+>     fator = 1;
+> 	
+1033,1038d653
+< /* If the pins are fixed we never move them from their initial    *
+<  * random locations.  The code below could be made more efficient *
+<  * by using the fact that pins appear first in the block list,    *
+<  * but this shouldn't cause any significant slowdown and won't be *
+<  * broken if I ever change the parser so that the pins aren't     *
+<  * necessarily at the start of the block list.                    */
+1040,1044c655,663
+<  if (fixed_pins == TRUE) {
+<     while (block[b_from].type != CLB) {
+<        b_from = my_irand(num_blocks - 1);
+<     }
+<  }
+---
+>   b_from = sort_from (fixed_pins);
+> 
+>   x_from = block[b_from].x;
+>   y_from = block[b_from].y;
+>   
+>   
+>   find_to (x_from, y_from, block[b_from].type, rlim, &x_to, &y_to);
+>   
+>   do {
+1046,1048c665
+<  x_from = block[b_from].x;
+<  y_from = block[b_from].y;
+<  find_to (x_from, y_from, block[b_from].type, rlim, &x_to, &y_to);
+---
+>   	
+1049a667
+>  
+1055,1083d672
+<  if (block[b_from].type == CLB) {
+<     io_num = -1;            /* Don't need, but stops compiler warning. */
+<     if (clb[x_to][y_to].occ == 1) {         /* Occupied -- do a switch */
+<        b_to = clb[x_to][y_to].u.block;
+<        block[b_from].x = x_to;
+<        block[b_from].y = y_to;
+<        block[b_to].x = x_from;
+<        block[b_to].y = y_from; 
+<     }    
+<     else {
+<        b_to = EMPTY;
+<        block[b_from].x = x_to;
+<        block[b_from].y = y_to; 
+<     }
+<  }
+<  else {   /* io block was selected for moving */
+<     io_num = my_irand(io_rat - 1);
+<     if (io_num >= clb[x_to][y_to].occ) {  /* Moving to an empty location */
+<        b_to = EMPTY;
+<        block[b_from].x = x_to;
+<        block[b_from].y = y_to;
+<     }
+<     else {          /* Swapping two blocks */
+<        b_to = *(clb[x_to][y_to].u.io_blocks+io_num);
+<        block[b_to].x = x_from;
+<        block[b_to].y = y_from;
+<        block[b_from].x = x_to;
+<        block[b_from].y = y_to;
+<     }
+1085c674,703
+<  }
+---
+>     if (block[b_from].type == CLB) {
+>       io_num = -1;		/* Don't need, but stops compiler warning. */
+>       if (clb[x_to][y_to].occ == 1) {	/* Occupied -- do a switch */
+> 			b_to = clb[x_to][y_to].u.block;
+> 
+> 			block[b_from].x = x_to;
+> 			block[b_from].y = y_to;
+> 			block[b_to].x = x_from;
+> 			block[b_to].y = y_from;
+>       } else {
+> 			#define EMPTY -1
+> 			b_to = EMPTY;
+> 			block[b_from].x = x_to;
+> 			block[b_from].y = y_to;
+>       }
+>     } else {			/* io block was selected for moving */
+>       io_num = my_irand (io_rat - 1);
+>       if (io_num >= clb[x_to][y_to].occ) {	/* Moving to an empty location */
+> 			b_to = EMPTY;
+> 			block[b_from].x = x_to;
+> 			block[b_from].y = y_to;
+>       } else {			/* Swapping two blocks */
+> 			b_to = *(clb[x_to][y_to].u.io_blocks + io_num);
+> 			block[b_to].x = x_from;
+> 			block[b_to].y = y_from;
+> 			block[b_from].x = x_to;
+> 			block[b_from].y = y_to;
+>       }
+> 
+>     }
+1093,1095c711,712
+<  delta_c = 0;                    /* Change in cost due to this swap. */
+<  bb_delta_c = 0;
+<  timing_delta_c = 0;
+---
+>     delta_c = 0;		/* Change in cost due to this swap. */
+>     num_of_pins = pins_on_block[block[b_from].type];
+1097c714,716
+<  num_of_pins = pins_on_block[block[b_from].type];    
+---
+>     num_nets_affected =
+>       find_affected_nets (nets_to_update, net_block_moved,
+> 			  b_from, b_to, num_of_pins);
+1099,1104c718,720
+<  num_nets_affected = find_affected_nets (nets_to_update, net_block_moved, 
+<      b_from, b_to, num_of_pins);
+< 
+<  if (place_cost_type == NONLINEAR_CONG) {
+<     save_region_occ (old_region_occ_x, old_region_occ_y, num_regions);
+<  }
+---
+>     if (place_cost_type == NONLINEAR_CONG) {
+>       save_region_occ (old_region_occ_x, old_region_occ_y, num_regions);
+>     }
+1106c722
+<  bb_index = 0;               /* Index of new bounding box. */
+---
+>     bb_index = 0;		/* Index of new bounding box. */
+1108,1109c724,725
+<  for (k=0;k<num_nets_affected;k++) {
+<     inet = nets_to_update[k];
+---
+>     for (k = 0; k < num_nets_affected; k++) {
+>       inet = nets_to_update[k];
+1114,1115c730,731
+<     if (net_block_moved[k] == FROM_AND_TO) 
+<        continue;
+---
+>       if (net_block_moved[k] == FROM_AND_TO)
+> 	continue;
+1117,1127c733,744
+<     if (net[inet].num_pins <= SMALL_NET) {
+<        get_non_updateable_bb (inet, &bb_coord_new[bb_index]);
+<     }
+<     else {
+<        if (net_block_moved[k] == FROM) 
+<           update_bb (inet, &bb_coord_new[bb_index], &bb_edge_new[bb_index],
+<              x_from, y_from, x_to, y_to);      
+<        else
+<           update_bb (inet, &bb_coord_new[bb_index], &bb_edge_new[bb_index],
+<              x_to, y_to, x_from, y_from);      
+<     }
+---
+>       if (net[inet].num_pins <= SMALL_NET) {
+> 	get_non_updateable_bb (inet, &bb_coord_new[bb_index]);
+>       } else {
+> 	if (net_block_moved[k] == FROM)
+> 	  update_bb (inet,
+> 		     &bb_coord_new[bb_index],
+> 		     &bb_edge_new[bb_index], x_from, y_from, x_to, y_to);
+> 	else
+> 	  update_bb (inet,
+> 		     &bb_coord_new[bb_index],
+> 		     &bb_edge_new[bb_index], x_to, y_to, x_from, y_from);
+>       }
+1129,1131c746,755
+<     if (place_cost_type != NONLINEAR_CONG) {
+<        temp_net_cost[inet] = get_net_cost (inet, &bb_coord_new[bb_index]);
+<        bb_delta_c += temp_net_cost[inet] - net_cost[inet];
+---
+>       if (place_cost_type != NONLINEAR_CONG) {
+> 	temp_net_cost[inet] = get_net_cost (inet, &bb_coord_new[bb_index]);
+> 	delta_c += temp_net_cost[inet] - net_cost[inet];
+>       } else {
+> 	/* Rip up, then replace with new bb. */
+> 	update_region_occ (inet, &bb_coords[inet], -1, num_regions);
+> 	update_region_occ (inet, &bb_coord_new[bb_index], 1, num_regions);
+>       }
+> 
+>       bb_index++;
+1133,1136c757,760
+<     else {
+<            /* Rip up, then replace with new bb. */
+<        update_region_occ (inet, &bb_coords[inet], -1, num_regions);  
+<        update_region_occ (inet, &bb_coord_new[bb_index],1, num_regions);
+---
+> 
+>     if (place_cost_type == NONLINEAR_CONG) {
+>       newcost = nonlinear_cong_cost (num_regions);
+>       delta_c = newcost - *cost;
+1139,1140c763
+<     bb_index++;
+<  }   
+---
+>     keep_switch = assess_swap (delta_c, t);
+1142,1145c765
+<  if (place_cost_type == NONLINEAR_CONG) {
+<     newcost = nonlinear_cong_cost(num_regions);
+<     bb_delta_c = newcost - *bb_cost;
+<  }
+---
+>     /* 1 -> move accepted, 0 -> rejected. */
+1146a767,768
+>     if (keep_switch) {
+>       *cost = *cost + delta_c;
+1148,1155c770
+<  if (place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      place_algorithm == PATH_TIMING_DRIVEN_PLACE) {   
+<    /*in this case we redefine delta_c as a combination of timing and bb.  *
+<     *additionally, we normalize all values, therefore delta_c is in       *
+<     *relation to 1*/
+<    
+<    comp_delta_td_cost(b_from, b_to, num_of_pins, &timing_delta_c,	
+< 		      &delay_delta_c);
+---
+>       /* update net cost functions and reset flags. */
+1157,1163c772
+<    delta_c = (1-timing_tradeoff) * bb_delta_c * inverse_prev_bb_cost + 
+<      timing_tradeoff * timing_delta_c * inverse_prev_timing_cost;
+<  }
+<  else {
+<    delta_c = bb_delta_c;
+<  }
+<  
+---
+>       bb_index = 0;
+1165c774,775
+<  keep_switch = assess_swap (delta_c, t); 
+---
+>       for (k = 0; k < num_nets_affected; k++) {
+> 	inet = nets_to_update[k];
+1167c777,778
+<  /* 1 -> move accepted, 0 -> rejected. */ 
+---
+> 	/* If we swapped two blocks connected to the same net, its bounding box *
+> 	 * doesn't change.                                                      */
+1169,1171c780,783
+<  if (keep_switch) {
+<     *cost = *cost + delta_c;    
+<     *bb_cost = *bb_cost + bb_delta_c;
+---
+> 	if (net_block_moved[k] == FROM_AND_TO) {
+> 	  temp_net_cost[inet] = -1;
+> 	  continue;
+> 	}
+1172a785,787
+> 	bb_coords[inet] = bb_coord_new[bb_index];
+> 	if (net[inet].num_pins > SMALL_NET)
+> 	  bb_num_on_edges[inet] = bb_edge_new[bb_index];
+1174,1179c789
+<     if (place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+< 	place_algorithm == PATH_TIMING_DRIVEN_PLACE) {      
+<       /*update the point_to_point_timing_cost and point_to_point_delay_cost 
+< 	values from the temporary values*/
+<       *timing_cost = *timing_cost + timing_delta_c;
+<       *delay_cost = *delay_cost + delay_delta_c;
+---
+> 	bb_index++;
+1181,1182c791,793
+<       update_td_cost(b_from, b_to, num_of_pins);
+<     }
+---
+> 	net_cost[inet] = temp_net_cost[inet];
+> 	temp_net_cost[inet] = -1;
+>       }
+1184c795
+<  /* update net cost functions and reset flags. */
+---
+>       /* Update Clb data structures since we kept the move. */
+1186c797,806
+<     bb_index = 0;
+---
+>       if (block[b_from].type == CLB) {
+> 	if (b_to != EMPTY) {
+> 	  clb[x_from][y_from].u.block = b_to;
+> 	  clb[x_to][y_to].u.block = b_from;
+> 	} else {
+> 	  clb[x_to][y_to].u.block = b_from;
+> 	  clb[x_to][y_to].occ = 1;
+> 	  clb[x_from][y_from].occ = 0;
+> 	}
+>       }
+1188,1189c808
+<     for (k=0;k<num_nets_affected;k++) {
+<        inet = nets_to_update[k];
+---
+>       else {			/* io block was selected for moving */
+1191,1192c810
+< /* If we swapped two blocks connected to the same net, its bounding box *
+<  * doesn't change.                                                      */
+---
+> 	/* Get the "sub_block" number of the b_from block. */
+1194,1197c812,815
+<        if (net_block_moved[k] == FROM_AND_TO) {
+<           temp_net_cost[inet] = -1;  
+<           continue;
+<        }
+---
+> 	for (off_from = 0;; off_from++) {
+> 	  if (clb[x_from][y_from].u.io_blocks[off_from] == b_from)
+> 	    break;
+> 	}
+1199,1201c817,830
+<        bb_coords[inet] = bb_coord_new[bb_index];
+<        if (net[inet].num_pins > SMALL_NET) 
+<           bb_num_on_edges[inet] = bb_edge_new[bb_index];
+---
+> 	if (b_to != EMPTY) {	/* Swapped two blocks. */
+> 	  clb[x_to][y_to].u.io_blocks[io_num] = b_from;
+> 	  clb[x_from][y_from].u.io_blocks[off_from] = b_to;
+> 	} else {		/* Moved to an empty location */
+> 	  clb[x_to][y_to].u.io_blocks[clb[x_to][y_to].occ] = b_from;
+> 	  clb[x_to][y_to].occ++;
+> 	  for (k = off_from; k < clb[x_from][y_from].occ - 1; k++) {	/* prevent gap  */
+> 	    clb[x_from][y_from].u.io_blocks[k] =	/* in io_blocks */
+> 	      clb[x_from][y_from].u.io_blocks[k + 1];
+> 	  }
+> 	  clb[x_from][y_from].occ--;
+> 	}
+>       }
+>     }
+1203c832
+<        bb_index++;
+---
+>     else {			/* Move was rejected.  */
+1205,1207c834,838
+<        net_cost[inet] = temp_net_cost[inet];
+<        temp_net_cost[inet] = -1;  
+<     }
+---
+>       /* Reset the net cost function flags first. */
+>       for (k = 0; k < num_nets_affected; k++) {
+> 			inet = nets_to_update[k];
+> 			temp_net_cost[inet] = -1;
+>       }
+1209c840,851
+<  /* Update Clb data structures since we kept the move. */
+---
+>       /* Restore the block data structures to their state before the move. */
+>       block[b_from].x = x_from;
+>       block[b_from].y = y_from;
+>       if (b_to != EMPTY) {
+> 			block[b_to].x = x_to;
+> 			block[b_to].y = y_to;
+>       }
+> 
+>       /* Restore the region occupancies to their state before the move. */
+>       if (place_cost_type == NONLINEAR_CONG) {
+> 	restore_region_occ (old_region_occ_x, old_region_occ_y, num_regions);
+>       }
+1211,1252d852
+<     if (block[b_from].type == CLB) {
+<        if (b_to != EMPTY) {
+<           clb[x_from][y_from].u.block = b_to; 
+<           clb[x_to][y_to].u.block = b_from;
+<        }
+<        else {
+<           clb[x_to][y_to].u.block = b_from;   
+<           clb[x_to][y_to].occ = 1;
+<           clb[x_from][y_from].occ = 0; 
+<        }
+<     }
+< 
+<     else {     /* io block was selected for moving */
+< 
+<      /* Get the "sub_block" number of the b_from block. */
+< 
+<        for (off_from=0;;off_from++) {
+<           if (clb[x_from][y_from].u.io_blocks[off_from] == b_from) break;
+<        }
+< 
+<        if (b_to != EMPTY) {   /* Swapped two blocks. */
+<           clb[x_to][y_to].u.io_blocks[io_num] = b_from;
+<           clb[x_from][y_from].u.io_blocks[off_from] = b_to;
+<        }
+<        else {                 /* Moved to an empty location */
+<           clb[x_to][y_to].u.io_blocks[clb[x_to][y_to].occ] = b_from;  
+<           clb[x_to][y_to].occ++;   
+<           for  (k=off_from;k<clb[x_from][y_from].occ-1;k++) { /* prevent gap  */
+<              clb[x_from][y_from].u.io_blocks[k] =          /* in io_blocks */
+<                 clb[x_from][y_from].u.io_blocks[k+1];
+<           }
+<           clb[x_from][y_from].occ--;
+<        }
+<     }  
+<  }  
+< 
+<  else {    /* Move was rejected.  */
+< 
+< /* Reset the net cost function flags first. */
+<     for (k=0;k<num_nets_affected;k++) {
+<        inet = nets_to_update[k];
+<        temp_net_cost[inet] = -1;
+1254,1260c854,865
+<     
+<  /* Restore the block data structures to their state before the move. */
+<     block[b_from].x = x_from;
+<     block[b_from].y = y_from;
+<     if (b_to != EMPTY) {
+<        block[b_to].x = x_to;
+<        block[b_to].y = y_to;
+---
+>     try_count++;
+>     if (t < 10) {
+>       if (!finded && (block[b_from].type == CLB) && (clb[x_to][y_to].occ == 1)) {
+> 	      b_to = clb[x_to][y_to].u.block;
+> 	
+> 		   if (is_connected (b_from, b_to, pins_on_block)) {
+> 	  
+> 	  		   find_neighbor (x_to, y_to, &x_to, &y_to);
+> 	  		   finded++;
+> 	  		   continue;
+> 	  	   }
+> 	  	}
+1261a867,871
+>     
+>     
+>     if(!keep_switch && (try_count < fator) && (block[b_from].type == CLB))
+>       find_to (x_from, y_from, block[b_from].type, rlim, &x_to, &y_to);
+>     //finded = 0;
+1263,1266d872
+< /* Restore the region occupancies to their state before the move. */
+<     if (place_cost_type == NONLINEAR_CONG) {
+<        restore_region_occ (old_region_occ_x, old_region_occ_y, num_regions);
+<     }
+1268c874,877
+<  }
+---
+>     
+> 
+>   } while (!keep_switch && (try_count < fator) && (block[b_from].type == CLB));
+> 
+1270,1271d878
+<  return(keep_switch);
+< }
+1272a880,881
+>   return (keep_switch);
+> }
+1274,1275c883,886
+< static void save_region_occ (float **old_region_occ_x, 
+<       float **old_region_occ_y, int num_regions) {
+---
+> static void
+> save_region_occ (float **old_region_occ_x,
+> 		 float **old_region_occ_y, int num_regions)
+> {
+1280c891
+<  int i, j;
+---
+>   int i, j;
+1282,1287c893,898
+<  for (i=0;i<num_regions;i++) { 
+<     for (j=0;j<num_regions;j++) { 
+<        old_region_occ_x[i][j] = place_region_x[i][j].occupancy; 
+<        old_region_occ_y[i][j] = place_region_y[i][j].occupancy; 
+<     } 
+<  } 
+---
+>   for (i = 0; i < num_regions; i++) {
+>     for (j = 0; j < num_regions; j++) {
+>       old_region_occ_x[i][j] = place_region_x[i][j].occupancy;
+>       old_region_occ_y[i][j] = place_region_y[i][j].occupancy;
+>     }
+>   }
+1290,1292c901,904
+< 
+< static void restore_region_occ (float **old_region_occ_x, 
+<        float **old_region_occ_y, int num_regions) {
+---
+> static void
+> restore_region_occ (float **old_region_occ_x,
+> 		    float **old_region_occ_y, int num_regions)
+> {
+1297,1302c909,914
+<  int i, j;
+<  
+<  for (i=0;i<num_regions;i++) {
+<     for (j=0;j<num_regions;j++) {
+<        place_region_x[i][j].occupancy = old_region_occ_x[i][j];
+<        place_region_y[i][j].occupancy = old_region_occ_y[i][j];
+---
+>   int i, j;
+> 
+>   for (i = 0; i < num_regions; i++) {
+>     for (j = 0; j < num_regions; j++) {
+>       place_region_x[i][j].occupancy = old_region_occ_x[i][j];
+>       place_region_y[i][j].occupancy = old_region_occ_y[i][j];
+1304c916
+<  }
+---
+>   }
+1307,1309c919,922
+< 
+< static int find_affected_nets (int *nets_to_update, int *net_block_moved,
+<     int b_from, int b_to, int num_of_pins) {
+---
+> static int
+> find_affected_nets (int *nets_to_update, int *net_block_moved,
+> 		    int b_from, int b_to, int num_of_pins)
+> {
+1316c929
+<  int k, inet, affected_index, count;
+---
+>   int k, inet, affected_index, count;
+1318c931
+<  affected_index = 0;
+---
+>   affected_index = 0;
+1320c933
+<  for (k=0;k<num_of_pins;k++) {
+---
+>   for (k = 0; k < num_of_pins; k++) {
+1322,1324d934
+<    
+<     if (inet == OPEN) 
+<        continue;
+1326,1327c936,940
+<     if (is_global[inet]) 
+<        continue;
+---
+>     if (inet == OPEN)
+>       continue;
+> 
+>     if (is_global[inet])
+>       continue;
+1331,1332c944,945
+<     if (temp_net_cost[inet] > 0.)  
+<        continue;
+---
+>     if (temp_net_cost[inet] > 0.)
+>       continue;
+1337,1380c950,951
+<     temp_net_cost[inet] = 1.;         /* Flag to say we've marked this net. */
+<  }
+< 
+<  if (b_to != EMPTY) {
+<     for (k=0;k<num_of_pins;k++) {
+<        inet = block[b_to].nets[k];
+<     
+<        if (inet == OPEN) 
+<           continue;
+<  
+<        if (is_global[inet]) 
+<           continue;
+< 
+<        if (temp_net_cost[inet] > 0.) {         /* Net already marked. */
+<           for (count=0;count<affected_index;count++) {
+<              if (nets_to_update[count] == inet) {
+<                 if (net_block_moved[count] == FROM) 
+<                    net_block_moved[count] = FROM_AND_TO;
+<                 break;
+<              }
+<           }
+< 
+< #ifdef DEBUG
+<           if (count > affected_index) {
+<              printf("Error in find_affected_nets -- count = %d,"
+<               " affected index = %d.\n", count, affected_index);
+<              exit (1);
+<           }
+< #endif
+<        }
+<                  
+<        else {           /* Net not marked yet. */
+< 
+<           nets_to_update[affected_index] = inet;
+<           net_block_moved[affected_index] = TO;
+<           affected_index++;
+<           temp_net_cost[inet] = 1.;    /* Flag means we've  marked net. */
+<        }
+<     }
+<  }
+< 
+<  return (affected_index);
+< }
+< 
+---
+>     temp_net_cost[inet] = 1.;	/* Flag to say we've marked this net. */
+>   }
+1382,1383c953,955
+< static void find_to (int x_from, int y_from, int type, float rlim, 
+<     int *x_to, int *y_to) {
+---
+>   if (b_to != EMPTY) {
+>     for (k = 0; k < num_of_pins; k++) {
+>       inet = block[b_to].nets[k];
+1385,1387c957,958
+<  /* Returns the point to which I want to swap, properly range limited. *
+<   * rlim must always be between 1 and nx (inclusive) for this routine  *
+<   * to work.                                                           */
+---
+>       if (inet == OPEN)
+> 	continue;
+1389c960,961
+<  int x_rel, y_rel, iside, iplace, rlx, rly;
+---
+>       if (is_global[inet])
+> 	continue;
+1391,1392c963,970
+<  rlx = min(nx,rlim);   /* Only needed when nx < ny. */
+<  rly = min (ny,rlim);  /* Added rly for aspect_ratio != 1 case. */
+---
+>       if (temp_net_cost[inet] > 0.) {	/* Net already marked. */
+> 	for (count = 0; count < affected_index; count++) {
+> 	  if (nets_to_update[count] == inet) {
+> 	    if (net_block_moved[count] == FROM)
+> 	      net_block_moved[count] = FROM_AND_TO;
+> 	    break;
+> 	  }
+> 	}
+1395,1398c973,977
+<  if (rlx < 1 || rlx > nx) {
+<     printf("Error in find_to: rlx = %d\n",rlx);
+<     exit(1);
+<  }
+---
+> 	if (count > affected_index) {
+> 	  printf ("Error in find_affected_nets -- count = %d,"
+> 		  " affected index = %d.\n", count, affected_index);
+> 	  exit (1);
+> 	}
+1399a979
+>       }
+1401,1505c981
+<  do {              /* Until (x_to, y_to) different from (x_from, y_from) */
+<     if (type == CLB) {
+<        x_rel = my_irand (2*rlx);    
+<        y_rel = my_irand (2*rly);
+<        *x_to = x_from - rlx + x_rel;
+<        *y_to = y_from - rly + y_rel;
+<        if (*x_to > nx) *x_to = *x_to - nx;    /* better spectral props. */
+<        if (*x_to < 1) *x_to = *x_to + nx;     /* than simple min, max   */
+<        if (*y_to > ny) *y_to = *y_to - ny;    /* clipping.              */
+<        if (*y_to < 1) *y_to = *y_to + ny;
+<     }
+<     else {                 /* io_block to be moved. */
+<        if (rlx >= nx) {
+<           iside = my_irand(3);
+< /*                              *
+<  *       +-----1----+           *
+<  *       |          |           *
+<  *       |          |           *
+<  *       0          2           *
+<  *       |          |           *
+<  *       |          |           *
+<  *       +-----3----+           *
+<  *                              */
+<           switch (iside) {
+<           case 0:
+<              iplace = my_irand (ny-1) + 1;
+<              *x_to = 0;
+<              *y_to = iplace;
+<              break;
+<           case 1:
+<              iplace = my_irand (nx-1) + 1;
+<              *x_to = iplace;
+<              *y_to = ny+1;
+<              break;
+<           case 2:
+<              iplace = my_irand (ny-1) + 1;
+<              *x_to = nx+1;
+<              *y_to = iplace;
+<              break;
+<           case 3:
+<              iplace = my_irand (nx-1) + 1;
+<              *x_to = iplace;
+<              *y_to = 0;
+<              break;
+<           default:
+<              printf("Error in find_to.  Unexpected io swap location.\n");
+<              exit (1);
+<           }
+<        }
+<        else {   /* rlx is less than whole chip */
+<           if (x_from == 0) {
+<              iplace = my_irand (2*rly);
+<              *y_to = y_from - rly + iplace;
+<              *x_to = x_from;
+<              if (*y_to > ny) {
+<                 *y_to = ny + 1;
+<                 *x_to = my_irand (rlx - 1) + 1;
+<              }
+<              else if (*y_to < 1) {
+<                 *y_to = 0;
+<                 *x_to = my_irand (rlx - 1) + 1;
+<              }
+<           }
+<           else if (x_from == nx+1) {
+<              iplace = my_irand (2*rly);
+<              *y_to = y_from - rly + iplace;
+<              *x_to = x_from;
+<              if (*y_to > ny) {
+<                 *y_to = ny + 1;
+<                 *x_to = nx - my_irand (rlx - 1); 
+<              }
+<              else if (*y_to < 1) {
+<                 *y_to = 0;
+<                 *x_to = nx - my_irand (rlx - 1);
+<              }
+<           }
+<           else if (y_from == 0) {
+<              iplace = my_irand (2*rlx);
+<              *x_to = x_from - rlx + iplace;
+<              *y_to = y_from;
+<              if (*x_to > nx) {
+<                 *x_to = nx + 1;
+<                 *y_to = my_irand (rly - 1) + 1;
+<              }
+<              else if (*x_to < 1) {
+<                 *x_to = 0;
+<                 *y_to = my_irand (rly -1) + 1;
+<              }
+<           }
+<           else {  /* *y_from == ny + 1 */
+<              iplace = my_irand (2*rlx);
+<              *x_to = x_from - rlx + iplace;
+<              *y_to = y_from;
+<              if (*x_to > nx) {
+<                 *x_to = nx + 1;
+<                 *y_to = ny - my_irand (rly - 1);
+<              }
+<              else if (*x_to < 1) {
+<                 *x_to = 0;
+<                 *y_to = ny - my_irand (rly - 1);
+<              }
+<           }
+<        }    /* End rlx if */
+<     }    /* end type if */
+<  } while ((x_from == *x_to) && (y_from == *y_to));
+---
+>       else {			/* Net not marked yet. */
+1507,1528c983,989
+< #ifdef DEBUG
+<    if (*x_to < 0 || *x_to > nx+1 || *y_to < 0 || *y_to > ny+1) {
+<       printf("Error in routine find_to:  (x_to,y_to) = (%d,%d)\n",
+<             *x_to, *y_to);
+<       exit(1);
+<    }
+< 
+<    if (type == CLB) {
+<      if (clb[*x_to][*y_to].type != CLB) {
+<         printf("Error: Moving CLB to illegal type block at (%d,%d)\n",
+<           *x_to,*y_to);
+<         exit(1);
+<      }
+<    }
+<    else {
+<      if (clb[*x_to][*y_to].type != IO) {
+<         printf("Error: Moving IO block to illegal type location at "
+<               "(%d,%d)\n", *x_to, *y_to);
+<         exit(1);
+<      }
+<    }
+< #endif
+---
+> 	nets_to_update[affected_index] = inet;
+> 	net_block_moved[affected_index] = TO;
+> 	affected_index++;
+> 	temp_net_cost[inet] = 1.;	/* Flag means we've  marked net. */
+>       }
+>     }
+>   }
+1530c991
+< /* printf("(%d,%d) moved to (%d,%d)\n",x_from,y_from,*x_to,*y_to); */
+---
+>   return (affected_index);
+1532a994
+> static void find_to (int x_from, int y_from, int type, float rlim, int *x_to, int *y_to){
+1534c996
+< static int assess_swap (float delta_c, float t) {
+---
+> 	
+1536c998,1000
+< /* Returns: 1 -> move accepted, 0 -> rejected. */ 
+---
+>   /* Returns the point to which I want to swap, properly range limited. *
+>    * rlim must always be between 1 and nx (inclusive) for this routine  *
+>    * to work.                                                           */
+1538,1539c1002
+<  int accept;
+<  float prob_fac, fnum;
+---
+>   int x_rel, y_rel, iside, iplace, rlx, rly;
+1541c1004,1005
+<  if (delta_c <= 0) {
+---
+>   rlx = min (nx, rlim);		/* Only needed when nx < ny. */
+>   rly = min (ny, rlim);		/* Added rly for aspect_ratio != 1 case. */
+1543,1544c1007,1011
+< #ifdef SPEC          /* Reduce variation in final solution due to round off */
+<     fnum = my_frand();
+---
+> #ifdef DEBUG
+>   if (rlx < 1 || rlx > nx) {
+>     printf ("Error in find_to: rlx = %d\n", rlx);
+>     exit (1);
+>   }
+1547,1586c1014,1120
+<     accept = 1;
+<     return(accept);
+<  }
+< 
+<  if (t == 0.) 
+<     return(0);
+< 
+<  fnum = my_frand();
+<  prob_fac = exp(-delta_c/t);
+<  if (prob_fac > fnum) {
+<     accept = 1;
+<  }
+<  else {
+<     accept = 0;
+<  }
+<  return(accept);
+< }
+< 
+< 
+< static float recompute_bb_cost (int place_cost_type, int num_regions) {
+< 
+< /* Recomputes the cost to eliminate roundoff that may have accrued.  *
+<  * This routine does as little work as possible to compute this new  *
+<  * cost.                                                             */
+< 
+<  int i, j, inet;
+<  float cost;
+< 
+<  cost = 0;
+< 
+< /* Initialize occupancies to zero if regions are being used. */
+<  
+<  if (place_cost_type == NONLINEAR_CONG) {
+<     for (i=0;i<num_regions;i++) {
+<        for (j=0;j<num_regions;j++) {
+<            place_region_x[i][j].occupancy = 0.;
+<            place_region_y[i][j].occupancy = 0.;
+<        }
+<     }
+<  }    
+---
+>   do {				/* Until (x_to, y_to) different from (x_from, y_from) */
+>     if (type == CLB) {
+>       x_rel = my_irand (2 * rlx);
+>       y_rel = my_irand (2 * rly);
+>       *x_to = x_from - rlx + x_rel;
+>       *y_to = y_from - rly + y_rel;
+>       if (*x_to > nx)
+> 			*x_to = *x_to - nx;	/* better spectral props. */
+>       if (*x_to < 1)
+> 			*x_to = *x_to + nx;	/* than simple min, max   */
+>       if (*y_to > ny)
+> 			*y_to = *y_to - ny;	/* clipping.              */
+>       if (*y_to < 1)
+> 			*y_to = *y_to + ny;
+>     } else {			/* io_block to be moved. */
+>       if (rlx >= nx) {
+> 			iside = my_irand (3);
+> 			/*                              *
+> 			 *       +-----1----+           *
+> 			 *       |          |           *
+> 			 *       |          |           *
+> 			 *       0          2           *
+> 			 *       |          |           *
+> 			 *       |          |           *
+> 			 *       +-----3----+           *
+> 			 *                              */
+> 			switch (iside) {
+> 			case 0:
+> 			  iplace = my_irand (ny - 1) + 1;
+> 			  *x_to = 0;
+> 			  *y_to = iplace;
+> 			  break;
+> 			case 1:
+> 			  iplace = my_irand (nx - 1) + 1;
+> 			  *x_to = iplace;
+> 			  *y_to = ny + 1;
+> 			  break;
+> 			case 2:
+> 			  iplace = my_irand (ny - 1) + 1;
+> 			  *x_to = nx + 1;
+> 			  *y_to = iplace;
+> 			  break;
+> 			case 3:
+> 			  iplace = my_irand (nx - 1) + 1;
+> 			  *x_to = iplace;
+> 			  *y_to = 0;
+> 			  break;
+> 			default:
+> 			  printf ("Error in find_to.  Unexpected io swap location.\n");
+> 			  exit (1);
+> 			}
+>       } else {			/* rlx is less than whole chip */
+> 			if (x_from == 0) {
+> 	  			iplace = my_irand (2 * rly);
+> 	  			*y_to = y_from - rly + iplace;
+> 	  			*x_to = x_from;
+> 	  			if (*y_to > ny) {
+> 	    			*y_to = ny + 1;
+> 	    			*x_to = my_irand (rlx - 1) + 1;
+> 	  			} else 
+> 	  				if (*y_to < 1) {
+> 	    				*y_to = 0;
+> 	    				*x_to = my_irand (rlx - 1) + 1;
+> 	  				}
+> 				} else 
+> 					if (x_from == nx + 1) {
+> 	  					iplace = my_irand (2 * rly);
+> 	  					*y_to = y_from - rly + iplace;
+> 	  					*x_to = x_from;
+> 	  					if (*y_to > ny) {
+> 	    					*y_to = ny + 1;
+> 	    					*x_to = nx - my_irand (rlx - 1);
+> 	  					} else 
+> 	  						if (*y_to < 1) {
+> 	    						*y_to = 0;
+> 	    						*x_to = nx - my_irand (rlx - 1);
+> 	  						}
+> 					} else 
+> 						if (y_from == 0) {
+> 	  						iplace = my_irand (2 * rlx);
+> 	  						*x_to = x_from - rlx + iplace;
+> 	  						*y_to = y_from;
+> 	  						if (*x_to > nx) {
+> 	    						*x_to = nx + 1;
+> 	    						*y_to = my_irand (rly - 1) + 1;
+> 	  						} else 
+> 	  							if (*x_to < 1) {
+> 	    							*x_to = 0;
+> 	    							*y_to = my_irand (rly - 1) + 1;
+> 	  							}
+> 						} else {		/* *y_from == ny + 1 */
+> 	  						iplace = my_irand (2 * rlx);
+> 	  						*x_to = x_from - rlx + iplace;
+> 	  						*y_to = y_from;
+> 	  						if (*x_to > nx) {
+> 	    						*x_to = nx + 1;
+> 	    						*y_to = ny - my_irand (rly - 1);
+> 	  						} else 
+> 	  							if (*x_to < 1) {
+> 	    							*x_to = 0;
+> 	    							*y_to = ny - my_irand (rly - 1);
+> 	  							}
+> 						}
+>       	}				/* End rlx if */
+>     	}				/* end type if */
+>     	
+>   }while ((x_from == *x_to) && (y_from == *y_to));
+1588,1590c1122,1127
+<  for (inet=0;inet<num_nets;inet++) {     /* for each net ... */
+<  
+<     if (is_global[inet] == FALSE) {    /* Do only if not global. */
+---
+> #ifdef DEBUG
+>   if (*x_to < 0 || *x_to > nx + 1 || *y_to < 0 || *y_to > ny + 1) {
+>     printf ("Error in routine find_to:  (x_to,y_to) = (%d,%d)\n",
+> 	    *x_to, *y_to);
+>     exit (1);
+>   }
+1592,1599c1129,1132
+<        /* Bounding boxes don't have to be recomputed; they're correct. */ 
+<   
+<        if (place_cost_type != NONLINEAR_CONG) {
+<           cost += net_cost[inet];
+<        } 
+<        else {      /* Must be nonlinear_cong case. */
+<           update_region_occ (inet, &bb_coords[inet], 1, num_regions);
+<        } 
+---
+>   if (type == CLB) {
+>     if (clb[*x_to][*y_to].type != CLB) {
+>       printf ("Error: Moving CLB to illegal type block at (%d,%d)\n", *x_to,*y_to);
+>       exit (1);
+1601,1638c1134,1139
+<  }
+<  
+<  if (place_cost_type == NONLINEAR_CONG) {
+<     cost = nonlinear_cong_cost (num_regions);
+<  }
+<  
+<  return (cost);
+< }
+< 
+< 
+< static float comp_td_point_to_point_delay (int inet, int ipin) {
+< 
+<   /*returns the delay of one point to point connection */
+< 
+<   int source_block, sink_block;
+<   int delta_x, delta_y;
+<   enum e_block_types source_type, sink_type;
+<   float delay_source_to_sink;
+< 
+<   delay_source_to_sink = 0.;
+< 
+<   source_block = net[inet].blocks[0];
+<   source_type = block[source_block].type;
+< 
+<   sink_block = net[inet].blocks[ipin];
+<   sink_type = block[sink_block].type;
+< 
+<   delta_x = abs(block[sink_block].x - block[source_block].x);
+<   delta_y = abs(block[sink_block].y - block[source_block].y);
+< 
+<   if (source_type == CLB) {
+<     if (sink_type == CLB) 
+<       delay_source_to_sink = delta_clb_to_clb[delta_x][delta_y];
+<     else if (sink_type == OUTPAD) 
+<       delay_source_to_sink = delta_clb_to_outpad[delta_x][delta_y];
+<     else {
+<       printf("Error in comp_td_point_to_point_delay in place.c, bad sink_type\n");
+<       exit(1);
+---
+>     
+>   } else {
+>     if (clb[*x_to][*y_to].type != IO) {
+>       printf ("Error: Moving IO block to illegal type location at "
+> 	      "(%d,%d)\n", *x_to, *y_to);
+>       exit (1);
+1641,1648c1142,1157
+<   else if (source_type == INPAD) {
+<     if (sink_type == CLB) 
+<       delay_source_to_sink = delta_inpad_to_clb[delta_x][delta_y];
+<     else if (sink_type == OUTPAD) 
+<       delay_source_to_sink = delta_inpad_to_outpad[delta_x][delta_y];
+<     else {
+<       printf("Error in comp_td_point_to_point_delay in place.c, bad sink_type\n");
+<       exit(1);
+---
+> #endif
+> /*
+>   if (type == CLB) {
+>     const int var_x[] = {0,1,1,1,0,-1,-1,-1,0};
+>     const int var_y[] = {0,-1,0,1,1,1,0,-1,-1};
+>     int i=1, new_x, new_y;
+>     for(i;i<9;i++){
+>     	
+>     	new_x = *x_to + var_x[i];
+>     	new_y = *y_to + var_y[i];
+>       if ( (new_x > nx) || (new_x < 1) || (new_y > ny) || (new_y < 1)){
+> 			new_x = -1;
+> 			new_y = -1;
+> 		}
+> 		*(x_to+i) = new_x;
+> 		*(y_to+i) = new_y;
+1650,1665c1159,1161
+<   }
+<   else {
+<     printf("Error in comp_td_point_to_point_delay in place.c, bad source_type\n");
+<     exit(1);
+<   }
+<   if (delay_source_to_sink < 0) {
+<     printf("Error in comp_td_point_to_point_delay in place.c, bad delay_source_to_sink value\n");
+<     exit(1);
+<   }
+< 
+<   if (delay_source_to_sink < 0.) {
+<     printf("Error in comp_td_point_to_point_delay in place.c, delay is less than 0\n");
+<     exit(1);
+<   }
+< 
+<   return(delay_source_to_sink);
+---
+>    }*/
+>     
+>   //printf("(%d,%d) moved to (%d,%d)\n",x_from,y_from,*x_to,*y_to); 
+1667a1164,1165
+> static void find_neighbor (int x_from, int y_from, int *x_to, int *y_to)
+> {
+1668a1167,1169
+>   /* Returns the point to which I want to swap, properly range limited. *
+>    * rlim must always be between 1 and nx (inclusive) for this routine  *
+>    * to work.                                                           */
+1670,1681c1171,1179
+< static void update_td_cost(int b_from, int b_to, int num_of_pins) {
+<   /*update the point_to_point_timing_cost values from the temporary */
+<   /*values for all connections that have changed */  
+< 
+<   int blkpin, net_pin, inet, ipin;
+<     
+<     for (blkpin=0; blkpin<num_of_pins; blkpin++) {
+<  
+<       inet = block[b_from].nets[blkpin];
+< 
+<       if (inet == OPEN) 
+< 	continue;
+---
+>   //int x_rel, y_rel, iside;
+>   //iside = my_irand (7);
+>   //int achei = 0;
+>   
+>   struct s_pos
+>   {
+>     int x;
+>     int y;
+>     int type;
+1683,1688c1181,1182
+<       if (is_global[inet]) 
+< 	continue;
+<    
+<       net_pin = net_pin_index[b_from][blkpin];
+< 
+<       if (net_pin != 0) { 
+---
+>   } *pos;
+>   int i, j, newX, newY, count, tsize, choice;
+1690,1714c1184,1203
+< 	/*the following "if" prevents the value from being updated twice*/
+< 	if (net[inet].blocks[0] != b_to && net[inet].blocks[0] != b_from) {
+< 
+< 	  point_to_point_delay_cost[inet][net_pin] = 
+< 	    temp_point_to_point_delay_cost[inet][net_pin];
+< 	  temp_point_to_point_delay_cost[inet][net_pin] = -1;
+< 
+< 	  point_to_point_timing_cost[inet][net_pin] = 
+< 	    temp_point_to_point_timing_cost[inet][net_pin];
+< 	  temp_point_to_point_timing_cost[inet][net_pin] = -1;
+< 	}
+<       }
+<       else { /*this net is being driven by a moved block, recompute */
+< 	/*all point to point connections on this net.*/
+< 	for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+< 
+< 	  point_to_point_delay_cost[inet][ipin] = 
+< 	    temp_point_to_point_delay_cost[inet][ipin];
+< 	  temp_point_to_point_delay_cost[inet][ipin] = -1;
+< 
+< 	  point_to_point_timing_cost[inet][ipin] = 
+< 	    temp_point_to_point_timing_cost[inet][ipin];
+< 	  temp_point_to_point_timing_cost[inet][ipin] = -1;
+< 	}
+<       }
+---
+>   tsize = 9;
+>   pos = (struct s_pos *) my_malloc (tsize * sizeof (struct s_pos));
+>   
+>   count = 0;
+>   for(i=-1; i < 2; i++){
+>    for(j = -1; j<2; j++){
+>     	newX = x_from + i;
+>     	newY = y_from + j;
+>       if(newX > 0 && newX <= nx &&  newY > 0  && newY <= ny){
+>        	if(clb[newX][newY].occ == 1){
+>        		pos[count].x = newX;
+>        		pos[count].y = newY;
+> 				count++;
+>        	}else{
+>        	  	*x_to = newX;
+> 				*y_to = newY;
+> 				free (pos);
+> 				 return;
+> 			}
+>       }        
+1715a1205,1212
+>   }
+>   choice = my_irand(count-1);
+>   *x_to = pos[choice].x;
+>   *y_to = pos[choice].y;
+>   
+>   free (pos);
+> 	
+> }
+1717,1737c1214,1216
+<     if (b_to != EMPTY) {
+<       for (blkpin=0; blkpin<num_of_pins; blkpin++) {
+<  
+< 	inet = block[b_to].nets[blkpin];
+< 
+< 	if (inet == OPEN) 
+< 	  continue;
+<     
+< 	if (is_global[inet]) 
+< 	  continue;
+<    
+< 	net_pin = net_pin_index[b_to][blkpin];
+< 
+< 	if (net_pin != 0) { 
+< 
+< 	/*the following "if" prevents the value from being updated 2x*/
+< 	if (net[inet].blocks[0] != b_to && net[inet].blocks[0] != b_from) {
+< 
+< 	    point_to_point_delay_cost[inet][net_pin] = 
+< 	      temp_point_to_point_delay_cost[inet][net_pin];
+< 	    temp_point_to_point_delay_cost[inet][net_pin] = -1;
+---
+> static int
+> assess_swap (float delta_c, float t)
+> {
+1739,1759c1218
+< 	    point_to_point_timing_cost[inet][net_pin] = 
+< 	      temp_point_to_point_timing_cost[inet][net_pin];
+< 	    temp_point_to_point_timing_cost[inet][net_pin] = -1;
+< 	  }
+< 	}
+< 	else { /*this net is being driven by a moved block, recompute */
+< 	  /*all point to point connections on this net.*/
+< 	  for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+< 
+< 	      point_to_point_delay_cost[inet][ipin] = 
+< 		temp_point_to_point_delay_cost[inet][ipin];
+< 	      temp_point_to_point_delay_cost[inet][ipin] = -1;
+< 
+< 	      point_to_point_timing_cost[inet][ipin] = 
+< 		temp_point_to_point_timing_cost[inet][ipin];
+< 	      temp_point_to_point_timing_cost[inet][ipin] = -1;
+< 	  }
+< 	}
+<       }
+<     }
+< }
+---
+> /* Returns: 1 -> move accepted, 0 -> rejected. */
+1760a1220,1221
+>   int accept;
+>   float prob_fac, fnum;
+1762,1764c1223
+< static void comp_delta_td_cost(int b_from, int b_to, 
+< 				int num_of_pins, float *delta_timing, 
+< 				float *delta_delay) {
+---
+>   if (delta_c <= 0) {
+1766,1769c1225,1227
+<   /*a net that is being driven by a moved block must have all of its  */
+<   /*sink timing costs recomputed. A net that is driving a moved block */
+<   /*must only have the timing cost on the connection driving the input*/
+<   /*pin computed*/
+---
+> #ifdef SPEC			/* Reduce variation in final solution due to round off */
+>     fnum = my_frand ();
+> #endif
+1771,1772c1229,1231
+<   int inet, k, net_pin, ipin;
+<   float delta_timing_cost, delta_delay_cost, temp_delay;
+---
+>     accept = 1;
+>     return (accept);
+>   }
+1774,1775c1233,1234
+<   delta_timing_cost = 0.;
+<   delta_delay_cost = 0.;
+---
+>   if (t == 0.)
+>     return (0);
+1776a1236,1244
+>   fnum = my_frand ();
+>   prob_fac = exp (-delta_c / t);
+>   if (prob_fac > fnum) {
+>     accept = 1;
+>   } else {
+>     accept = 0;
+>   }
+>   return (accept);
+> }
+1778,1779c1246,1248
+<   for (k=0;k<num_of_pins;k++) { 
+<     inet = block[b_from].nets[k];
+---
+> static float
+> recompute_cost (int place_cost_type, int num_regions)
+> {
+1781,1787c1250,1252
+<     if (inet == OPEN) 
+<       continue;
+<     
+<     if (is_global[inet]) 
+<       continue;
+<    
+<     net_pin = net_pin_index[b_from][k];
+---
+> /* Recomputes the cost to eliminate roundoff that may have accrued.  *
+>  * This routine does as little work as possible to compute this new  *
+>  * cost.                                                             */
+1789c1254,1255
+<     if (net_pin != 0) { /*this net is driving a moved block               */
+---
+>   int i, j, inet;
+>   float cost;
+1791,1817c1257
+<       /*if this net is being driven by a block that has moved, we do not  */
+<       /*need to compute the change in the timing cost (here) since it will*/
+<       /*be computed in the fanout of the net on  the driving block, also  */     
+<       /*computing it here would double count the change, and mess up the  */
+<       /*delta_timing_cost value */ 
+<       if (net[inet].blocks[0] != b_to && net[inet].blocks[0] != b_from) {
+< 	temp_delay = comp_td_point_to_point_delay(inet, net_pin);
+< 
+< 	temp_point_to_point_delay_cost[inet][net_pin] = temp_delay;
+< 	temp_point_to_point_timing_cost[inet][net_pin] =
+< 	  timing_place_crit[inet][net_pin] * temp_delay;
+< 
+< 	delta_delay_cost += temp_point_to_point_delay_cost[inet][net_pin] -
+< 	  point_to_point_delay_cost[inet][net_pin];
+< 
+< 	delta_timing_cost += temp_point_to_point_timing_cost[inet][net_pin] - 
+< 	  point_to_point_timing_cost[inet][net_pin];
+<       }
+<     }
+<     else { /*this net is being driven by a moved block, recompute */
+<       /*all point to point connections on this net.*/
+<       for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+< 	temp_delay = comp_td_point_to_point_delay(inet, ipin);
+< 	
+< 	temp_point_to_point_delay_cost[inet][ipin] = temp_delay;
+< 	temp_point_to_point_timing_cost[inet][ipin] =
+< 	  timing_place_crit[inet][ipin] * temp_delay;
+---
+>   cost = 0;
+1819,1820c1259
+< 	delta_delay_cost += temp_point_to_point_delay_cost[inet][ipin] -
+< 	  point_to_point_delay_cost[inet][ipin];
+---
+> /* Initialize occupancies to zero if regions are being used. */
+1822,1823c1261,1265
+< 	delta_timing_cost += temp_point_to_point_timing_cost[inet][ipin] - 
+< 	  point_to_point_timing_cost[inet][ipin];
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+>     for (i = 0; i < num_regions; i++) {
+>       for (j = 0; j < num_regions; j++) {
+> 	place_region_x[i][j].occupancy = 0.;
+> 	place_region_y[i][j].occupancy = 0.;
+1828,1830c1270
+<   if (b_to != EMPTY) {
+<     for (k=0;k<num_of_pins;k++) { 
+<       inet = block[b_to].nets[k];
+---
+>   for (inet = 0; inet < num_nets; inet++) {	/* for each net ... */
+1832,1838c1272
+<       if (inet == OPEN) 
+< 	continue;
+<     
+<       if (is_global[inet]) 
+< 	continue;
+<    
+<       net_pin = net_pin_index[b_to][k];
+---
+>     if (is_global[inet] == FALSE) {	/* Do only if not global. */
+1840c1274
+<       if (net_pin != 0) { /*this net is driving a moved block*/
+---
+>       /* Bounding boxes don't have to be recomputed; they're correct. */
+1842,1875c1276,1279
+< 	/*if this net is being driven by a block that has moved, we do not */
+< 	/*need to compute the change in the timing cost (here) since it was*/
+< 	/*computed in the fanout of the net on  the driving block, also    */     
+< 	/*computing it here would double count the change, and mess up the */
+< 	/*delta_timing_cost value */ 
+< 	if (net[inet].blocks[0] != b_to && net[inet].blocks[0] != b_from) {
+< 	  temp_delay = comp_td_point_to_point_delay(inet, net_pin);
+< 
+< 	  temp_point_to_point_delay_cost[inet][net_pin] = temp_delay;
+< 	  temp_point_to_point_timing_cost[inet][net_pin] =
+< 	    timing_place_crit[inet][net_pin] * temp_delay;
+< 
+< 	  delta_delay_cost += temp_point_to_point_delay_cost[inet][net_pin] -
+< 	    point_to_point_delay_cost[inet][net_pin];
+< 	  delta_timing_cost += temp_point_to_point_timing_cost[inet][net_pin] - 
+< 	    point_to_point_timing_cost[inet][net_pin];
+< 	}
+<       }
+<       else { /*this net is being driven by a moved block, recompute */
+< 	/*all point to point connections on this net.*/
+< 	for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+< 
+< 	  temp_delay = comp_td_point_to_point_delay(inet, ipin);
+< 
+< 	  temp_point_to_point_delay_cost[inet][ipin] = temp_delay;
+< 	  temp_point_to_point_timing_cost[inet][ipin] =
+< 	    timing_place_crit[inet][ipin] * temp_delay;
+< 	    
+< 
+< 	  delta_delay_cost += temp_point_to_point_delay_cost[inet][ipin] -
+< 	    point_to_point_delay_cost[inet][ipin];
+< 	  delta_timing_cost += temp_point_to_point_timing_cost[inet][ipin] - 
+< 	    point_to_point_timing_cost[inet][ipin];
+< 	}
+---
+>       if (place_cost_type != NONLINEAR_CONG) {
+> 	cost += net_cost[inet];
+>       } else {			/* Must be nonlinear_cong case. */
+> 	update_region_occ (inet, &bb_coords[inet], 1, num_regions);
+1880,1911c1284,1285
+<   *delta_timing = delta_timing_cost;
+<   *delta_delay = delta_delay_cost;
+< }
+< 
+< static void comp_td_costs (float *timing_cost, float *connection_delay_sum) {
+<   /*computes the cost (from scratch) due to the delays and criticalities*
+<    *on all point to point connections, we define the timing cost of     *
+<    *each connection as criticality*delay */
+< 
+<   int inet , ipin;
+<   float loc_timing_cost, loc_connection_delay_sum, temp_delay_cost, temp_timing_cost;
+< 
+<   loc_timing_cost = 0.;
+<   loc_connection_delay_sum = 0.;
+< 
+<   for (inet=0;inet<num_nets;inet++) {     /* for each net ... */
+<     if (is_global[inet] == FALSE) {    /* Do only if not global. */
+< 
+<       for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+< 
+< 	temp_delay_cost = comp_td_point_to_point_delay(inet, ipin);
+< 	temp_timing_cost = temp_delay_cost *timing_place_crit[inet][ipin];
+< 
+< 	loc_connection_delay_sum += temp_delay_cost;
+< 	point_to_point_delay_cost[inet][ipin] = temp_delay_cost;
+< 	temp_point_to_point_delay_cost[inet][ipin] = -1; /*undefined*/
+< 	
+< 	point_to_point_timing_cost[inet][ipin] = temp_timing_cost;
+< 	temp_point_to_point_timing_cost[inet][ipin] = -1; /*undefined*/
+< 	loc_timing_cost += temp_timing_cost;
+<       }
+<     }
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+>     cost = nonlinear_cong_cost (num_regions);
+1913,1915d1286
+<   *timing_cost = loc_timing_cost;
+<   *connection_delay_sum = loc_connection_delay_sum;
+< }
+1916a1288,1289
+>   return (cost);
+> }
+1918c1291,1293
+< static float comp_bb_cost (int method, int place_cost_type, int num_regions) {
+---
+> static float
+> comp_cost (int method, int place_cost_type, int num_regions)
+> {
+1929,1930c1304,1305
+<  int i, j, k; 
+<  float cost;
+---
+>   int i, j, k;
+>   float cost;
+1932c1307
+<  cost = 0;
+---
+>   cost = 0;
+1936,1941c1311,1316
+<  if (place_cost_type == NONLINEAR_CONG) {
+<     for (i=0;i<num_regions;i++) {
+<        for (j=0;j<num_regions;j++) {
+<            place_region_x[i][j].occupancy = 0.;
+<            place_region_y[i][j].occupancy = 0.;
+<        }
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+>     for (i = 0; i < num_regions; i++) {
+>       for (j = 0; j < num_regions; j++) {
+> 	place_region_x[i][j].occupancy = 0.;
+> 	place_region_y[i][j].occupancy = 0.;
+>       }
+1943c1318
+<  }
+---
+>   }
+1945c1320
+<  for (k=0;k<num_nets;k++) {     /* for each net ... */
+---
+>   for (k = 0; k < num_nets; k++) {	/* for each net ... */
+1947c1322
+<     if (is_global[k] == FALSE) {    /* Do only if not global. */
+---
+>     if (is_global[k] == FALSE) {	/* Do only if not global. */
+1952,1965c1327,1338
+<        if (net[k].num_pins > SMALL_NET && method == NORMAL) {
+<           get_bb_from_scratch (k, &bb_coords[k], &bb_num_on_edges[k]);
+<        }
+<        else {
+<           get_non_updateable_bb (k, &bb_coords[k]);
+<        }
+<        
+<        if (place_cost_type != NONLINEAR_CONG) {
+<           net_cost[k] = get_net_cost(k, &bb_coords[k]);
+<           cost += net_cost[k];
+<        }
+<        else {      /* Must be nonlinear_cong case. */
+<           update_region_occ (k, &bb_coords[k], 1, num_regions);
+<        }
+---
+>       if (net[k].num_pins > SMALL_NET && method == NORMAL) {
+> 	get_bb_from_scratch (k, &bb_coords[k], &bb_num_on_edges[k]);
+>       } else {
+> 	get_non_updateable_bb (k, &bb_coords[k]);
+>       }
+> 
+>       if (place_cost_type != NONLINEAR_CONG) {
+> 	net_cost[k] = get_net_cost (k, &bb_coords[k]);
+> 	cost += net_cost[k];
+>       } else {			/* Must be nonlinear_cong case. */
+> 	update_region_occ (k, &bb_coords[k], 1, num_regions);
+>       }
+1967c1340
+<  }
+---
+>   }
+1969c1342
+<  if (place_cost_type == NONLINEAR_CONG) {
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+1971c1344
+<  }
+---
+>   }
+1973c1346
+<  return (cost);
+---
+>   return (cost);
+1976,1977c1349,1351
+< 
+< static float nonlinear_cong_cost (int num_regions) {
+---
+> static float
+> nonlinear_cong_cost (int num_regions)
+> {
+1988,1989c1362,1363
+<  float cost, tmp;
+<  int i, j;
+---
+>   float cost, tmp;
+>   int i, j;
+1991c1365
+<  cost = 0.;
+---
+>   cost = 0.;
+1993,1994c1367,1368
+<  for (i=0;i<num_regions;i++) {
+<     for (j=0;j<num_regions;j++) {
+---
+>   for (i = 0; i < num_regions; i++) {
+>     for (j = 0; j < num_regions; j++) {
+1998,2018c1372,1390
+<        if (place_region_x[i][j].occupancy < place_region_x[i][j].capacity) {
+<           cost += place_region_x[i][j].occupancy * 
+<                place_region_x[i][j].inv_capacity;
+<        }
+<        else {  /* Overused region -- penalize. */
+< 
+<           tmp = place_region_x[i][j].occupancy * 
+<                place_region_x[i][j].inv_capacity;
+<           cost += tmp * tmp;
+<        }
+< 
+<        if (place_region_y[i][j].occupancy < place_region_y[i][j].capacity) {
+<           cost += place_region_y[i][j].occupancy * 
+<                place_region_y[i][j].inv_capacity;
+<        }
+<        else {  /* Overused region -- penalize. */
+< 
+<           tmp = place_region_y[i][j].occupancy * 
+<                place_region_y[i][j].inv_capacity;
+<           cost += tmp * tmp;
+<        }
+---
+>       if (place_region_x[i][j].occupancy < place_region_x[i][j].capacity) {
+> 	cost += place_region_x[i][j].occupancy *
+> 	  place_region_x[i][j].inv_capacity;
+>       } else {			/* Overused region -- penalize. */
+> 
+> 	tmp = place_region_x[i][j].occupancy *
+> 	  place_region_x[i][j].inv_capacity;
+> 	cost += tmp * tmp;
+>       }
+> 
+>       if (place_region_y[i][j].occupancy < place_region_y[i][j].capacity) {
+> 	cost += place_region_y[i][j].occupancy *
+> 	  place_region_y[i][j].inv_capacity;
+>       } else {			/* Overused region -- penalize. */
+> 
+> 	tmp = place_region_y[i][j].occupancy *
+> 	  place_region_y[i][j].inv_capacity;
+> 	cost += tmp * tmp;
+>       }
+2021c1393
+<  }
+---
+>   }
+2023c1395
+<  return (cost);
+---
+>   return (cost);
+2026,2028c1398,1401
+< 
+< static void update_region_occ (int inet, struct s_bb *coords, 
+<     int add_or_sub, int num_regions) {
+---
+> static void
+> update_region_occ (int inet, struct s_bb *coords,
+> 		   int add_or_sub, int num_regions)
+> {
+2035,2040c1408,1413
+<  float net_xmin, net_xmax, net_ymin, net_ymax, crossing; 
+<  float inv_region_len, inv_region_height;
+<  float inv_bb_len, inv_bb_height;
+<  float overlap_xlow, overlap_xhigh, overlap_ylow, overlap_yhigh;
+<  float y_overlap, x_overlap, x_occupancy, y_occupancy;
+<  int imin, imax, jmin, jmax, i, j;
+---
+>   float net_xmin, net_xmax, net_ymin, net_ymax, crossing;
+>   float inv_region_len, inv_region_height;
+>   float inv_bb_len, inv_bb_height;
+>   float overlap_xlow, overlap_xhigh, overlap_ylow, overlap_yhigh;
+>   float y_overlap, x_overlap, x_occupancy, y_occupancy;
+>   int imin, imax, jmin, jmax, i, j;
+2042c1415
+<  if (net[inet].num_pins > 50) {
+---
+>   if (net[inet].num_pins > 50) {
+2044,2047c1417,1424
+<  }
+<  else {  
+<     crossing = cross_count[net[inet].num_pins-1];
+<  }
+---
+>   } else {
+>     crossing = cross_count[net[inet].num_pins - 1];
+>   }
+> 
+>   net_xmin = coords->xmin - 0.5;
+>   net_xmax = coords->xmax + 0.5;
+>   net_ymin = coords->ymin - 0.5;
+>   net_ymax = coords->ymax + 0.5;
+2049,2053d1425
+<  net_xmin = coords->xmin - 0.5;
+<  net_xmax = coords->xmax + 0.5;
+<  net_ymin = coords->ymin - 0.5;
+<  net_ymax = coords->ymax + 0.5;
+<  
+2056,2057c1428,1429
+<  inv_region_len = (float) num_regions / (float) nx;
+<  inv_region_height = (float) num_regions / (float) ny;
+---
+>   inv_region_len = (float) num_regions / (float) nx;
+>   inv_region_height = (float) num_regions / (float) ny;
+2066,2075c1438,1447
+<  imin = (int) (net_xmin - 0.5) * inv_region_len;
+<  imax = (int) (net_xmax - 0.5) * inv_region_len;
+<  imax = min (imax, num_regions - 1);       /* Watch for weird roundoff */
+< 
+<  jmin = (int) (net_ymin - 0.5) * inv_region_height;
+<  jmax = (int) (net_ymax - 0.5) * inv_region_height;
+<  jmax = min (jmax, num_regions - 1);       /* Watch for weird roundoff */
+<  
+<  inv_bb_len = 1. / (net_xmax - net_xmin);
+<  inv_bb_height = 1. / (net_ymax - net_ymin);
+---
+>   imin = (int) (net_xmin - 0.5) * inv_region_len;
+>   imax = (int) (net_xmax - 0.5) * inv_region_len;
+>   imax = min (imax, num_regions - 1);	/* Watch for weird roundoff */
+> 
+>   jmin = (int) (net_ymin - 0.5) * inv_region_height;
+>   jmax = (int) (net_ymax - 0.5) * inv_region_height;
+>   jmax = min (jmax, num_regions - 1);	/* Watch for weird roundoff */
+> 
+>   inv_bb_len = 1. / (net_xmax - net_xmin);
+>   inv_bb_height = 1. / (net_ymax - net_ymin);
+2080,2088c1452,1460
+<  for (i=imin;i<=imax;i++) {
+<     for (j=jmin;j<=jmax;j++) {
+<        overlap_xlow = max (place_region_bounds_x[i],net_xmin);
+<        overlap_xhigh = min (place_region_bounds_x[i+1],net_xmax);
+<        overlap_ylow = max (place_region_bounds_y[j],net_ymin);
+<        overlap_yhigh = min (place_region_bounds_y[j+1],net_ymax);
+<        
+<        x_overlap = overlap_xhigh - overlap_xlow;
+<        y_overlap = overlap_yhigh - overlap_ylow;
+---
+>   for (i = imin; i <= imax; i++) {
+>     for (j = jmin; j <= jmax; j++) {
+>       overlap_xlow = max (place_region_bounds_x[i], net_xmin);
+>       overlap_xhigh = min (place_region_bounds_x[i + 1], net_xmax);
+>       overlap_ylow = max (place_region_bounds_y[j], net_ymin);
+>       overlap_yhigh = min (place_region_bounds_y[j + 1], net_ymax);
+> 
+>       x_overlap = overlap_xhigh - overlap_xlow;
+>       y_overlap = overlap_yhigh - overlap_ylow;
+2092,2100c1464,1472
+<        if (x_overlap < -0.001) {
+<           printf ("Error in update_region_occ:  x_overlap < 0"
+<                   "\n inet = %d, overlap = %g\n", inet, x_overlap);
+<        }
+< 
+<        if (y_overlap < -0.001) {
+<           printf ("Error in update_region_occ:  y_overlap < 0"
+<                   "\n inet = %d, overlap = %g\n", inet, y_overlap);
+<        }
+---
+>       if (x_overlap < -0.001) {
+> 	printf ("Error in update_region_occ:  x_overlap < 0"
+> 		"\n inet = %d, overlap = %g\n", inet, x_overlap);
+>       }
+> 
+>       if (y_overlap < -0.001) {
+> 	printf ("Error in update_region_occ:  y_overlap < 0"
+> 		"\n inet = %d, overlap = %g\n", inet, y_overlap);
+>       }
+2102a1475,1478
+>       x_occupancy =
+> 	crossing * y_overlap * x_overlap * inv_bb_height * inv_region_len;
+>       y_occupancy =
+> 	crossing * x_overlap * y_overlap * inv_bb_len * inv_region_height;
+2104,2110c1480,1481
+<        x_occupancy = crossing * y_overlap * x_overlap * inv_bb_height *
+<              inv_region_len;
+<        y_occupancy = crossing * x_overlap * y_overlap * inv_bb_len *
+<              inv_region_height;
+<        
+<        place_region_x[i][j].occupancy += add_or_sub * x_occupancy;
+<        place_region_y[i][j].occupancy += add_or_sub * y_occupancy;
+---
+>       place_region_x[i][j].occupancy += add_or_sub * x_occupancy;
+>       place_region_y[i][j].occupancy += add_or_sub * y_occupancy;
+2112c1483
+<  }
+---
+>   }
+2116,2117c1487,1489
+< 
+< static void free_place_regions (int num_regions) {
+---
+> static void
+> free_place_regions (int num_regions)
+> {
+2122,2123c1494,1495
+<  free_matrix (place_region_x, 0, num_regions-1, 0, sizeof (struct 
+<            s_place_region));
+---
+>   free_matrix (place_region_x, 0, num_regions - 1, 0, sizeof (struct
+> 							      s_place_region));
+2125,2126c1497,1498
+<  free_matrix (place_region_y, 0, num_regions-1, 0, sizeof (struct 
+<            s_place_region));
+---
+>   free_matrix (place_region_y, 0, num_regions - 1, 0, sizeof (struct
+> 							      s_place_region));
+2128,2129c1500,1501
+<  free (place_region_bounds_x);
+<  free (place_region_bounds_y);
+---
+>   free (place_region_bounds_x);
+>   free (place_region_bounds_y);
+2132,2135c1504,1507
+< 
+< static void free_placement_structs (int place_cost_type, int num_regions,
+<         float **old_region_occ_x, float **old_region_occ_y, 
+< 	struct s_placer_opts placer_opts) {
+---
+> static void
+> free_placement_structs (int place_cost_type, int num_regions,
+> 			float **old_region_occ_x, float **old_region_occ_y)
+> {
+2138,2152c1510
+<  * elsewhere).   */
+< 
+<   int inet;
+< 
+<   if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<       placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<       placer_opts.enable_timing_computations) {   
+<     for (inet=0; inet<num_nets; inet++) {
+<       /*add one to the address since it is indexed from 1 not 0 */
+< 
+<      point_to_point_delay_cost[inet] ++;
+<      free(point_to_point_delay_cost[inet]);
+< 
+<      point_to_point_timing_cost[inet] ++;
+<      free(point_to_point_timing_cost[inet]);
+---
+>  * elsewhere).                                                           */
+2154,2155c1512,1515
+<      temp_point_to_point_delay_cost[inet] ++;
+<      free(temp_point_to_point_delay_cost[inet]);
+---
+>   free (net_cost);
+>   free (temp_net_cost);
+>   free (bb_num_on_edges);
+>   free (bb_coords);
+2157,2161c1517,1520
+<      temp_point_to_point_timing_cost[inet] ++;
+<      free(temp_point_to_point_timing_cost[inet]);
+<    }
+<    free(point_to_point_delay_cost);
+<    free(temp_point_to_point_delay_cost);
+---
+>   net_cost = NULL;		/* Defensive coding. */
+>   temp_net_cost = NULL;
+>   bb_num_on_edges = NULL;
+>   bb_coords = NULL;
+2163,2164c1522
+<    free(point_to_point_timing_cost);
+<    free(temp_point_to_point_timing_cost);
+---
+>   free_unique_pin_list ();
+2166,2182c1524
+<    free_matrix (net_pin_index, 0, num_blocks-1, 0, sizeof(int));
+<   }
+< 
+< 
+<  free (net_cost);
+<  free (temp_net_cost);
+<  free (bb_num_on_edges);
+<  free (bb_coords);
+< 
+<  net_cost = NULL;         /* Defensive coding. */
+<  temp_net_cost = NULL;
+<  bb_num_on_edges = NULL;
+<  bb_coords = NULL;
+< 
+<  free_unique_pin_list ();
+< 
+<  if (place_cost_type == NONLINEAR_CONG) {
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+2184,2186c1526,1528
+<     free_matrix (old_region_occ_x, 0, num_regions-1,0, sizeof (float));
+<     free_matrix (old_region_occ_y, 0, num_regions-1,0, sizeof (float));
+<  }
+---
+>     free_matrix (old_region_occ_x, 0, num_regions - 1, 0, sizeof (float));
+>     free_matrix (old_region_occ_y, 0, num_regions - 1, 0, sizeof (float));
+>   }
+2188c1530
+<  else if (place_cost_type == LINEAR_CONG) {
+---
+>   else if (place_cost_type == LINEAR_CONG) {
+2190c1532
+<  }
+---
+>   }
+2193,2196c1535,1540
+< 
+< static void alloc_and_load_placement_structs (int place_cost_type, 
+<        int num_regions, float place_cost_exp, float ***old_region_occ_x, 
+<        float ***old_region_occ_y, struct s_placer_opts placer_opts) {
+---
+> static void
+> alloc_and_load_placement_structs (int place_cost_type,
+> 				  int num_regions, float place_cost_exp,
+> 				  float ***old_region_occ_x,
+> 				  float ***old_region_occ_y)
+> {
+2201,2246c1545
+<  int inet, ipin;
+< 
+< 
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<      placer_opts.enable_timing_computations) {
+<    /*allocate structures associated with timing driven placement */
+<    /* [0..num_nets-1][1..num_pins-1]  */
+<    point_to_point_delay_cost = (float **) my_malloc (num_nets * sizeof (float*));
+<    temp_point_to_point_delay_cost = (float **) my_malloc (num_nets * sizeof (float*));
+< 
+<    point_to_point_timing_cost = (float **) my_malloc (num_nets * sizeof (float*));
+<    temp_point_to_point_timing_cost = (float **) my_malloc (num_nets * sizeof (float*));
+< 
+<    net_pin_index = (int **)alloc_matrix(0, num_blocks-1, 0, pins_per_clb-1, sizeof (int));
+< 
+<    for (inet=0; inet<num_nets; inet++) {
+< 
+<      /* in the following, subract one so index starts at *
+<       * 1 instead of 0 */
+<      point_to_point_delay_cost[inet] = 
+<        (float *) my_malloc ((net[inet].num_pins-1) * sizeof (float));
+<      point_to_point_delay_cost[inet] --;
+< 
+<      temp_point_to_point_delay_cost[inet] = 
+<        (float *) my_malloc ((net[inet].num_pins-1) * sizeof (float));
+<      temp_point_to_point_delay_cost[inet] --;
+< 
+<      point_to_point_timing_cost[inet] = 
+<        (float *) my_malloc ((net[inet].num_pins-1) * sizeof (float));
+<      point_to_point_timing_cost[inet] --;
+< 
+<      temp_point_to_point_timing_cost[inet] = 
+<        (float *) my_malloc ((net[inet].num_pins-1) * sizeof (float));
+<      temp_point_to_point_timing_cost[inet] --;
+<    }
+<    for (inet=0; inet<num_nets; inet++) {
+<      for (ipin=1; ipin<net[inet].num_pins; ipin++) {
+<        point_to_point_delay_cost[inet][ipin] = 0;
+<        temp_point_to_point_delay_cost[inet][ipin] = 0;
+<      }
+<    }
+<  }
+< 
+< 
+< 
+---
+>   int inet;
+2248,2250c1547,1548
+<  
+<  net_cost = (float *) my_malloc (num_nets * sizeof (float));
+<  temp_net_cost = (float *) my_malloc (num_nets * sizeof (float));
+---
+>   net_cost = (float *) my_malloc (num_nets * sizeof (float));
+>   temp_net_cost = (float *) my_malloc (num_nets * sizeof (float));
+2256,2257c1554,1555
+<  for (inet=0;inet<num_nets;inet++)
+<     temp_net_cost[inet] = -1.; 
+---
+>   for (inet = 0; inet < num_nets; inet++)
+>     temp_net_cost[inet] = -1.;
+2259,2260c1557,1559
+<  bb_coords = (struct s_bb *) my_malloc (num_nets * sizeof(struct s_bb));
+<  bb_num_on_edges = (struct s_bb *) my_malloc (num_nets * sizeof(struct s_bb));
+---
+>   bb_coords = (struct s_bb *) my_malloc (num_nets * sizeof (struct s_bb));
+>   bb_num_on_edges =
+>     (struct s_bb *) my_malloc (num_nets * sizeof (struct s_bb));
+2264c1563
+<  alloc_and_load_unique_pin_list ();
+---
+>   alloc_and_load_unique_pin_list ();
+2268c1567
+<  if (place_cost_type == NONLINEAR_CONG) {
+---
+>   if (place_cost_type == NONLINEAR_CONG) {
+2270,2276c1569,1576
+<     load_place_regions(num_regions);
+<     *old_region_occ_x = (float **) alloc_matrix (0, num_regions-1,0,
+<                num_regions-1, sizeof (float));
+<     *old_region_occ_y = (float **) alloc_matrix (0, num_regions-1,0,
+<                num_regions-1, sizeof (float));
+<  }
+<  else {   /* Shouldn't use them; crash hard if I do!   */
+---
+>     load_place_regions (num_regions);
+>     *old_region_occ_x =
+>       (float **) alloc_matrix (0, num_regions - 1, 0,
+> 			       num_regions - 1, sizeof (float));
+>     *old_region_occ_y =
+>       (float **) alloc_matrix (0, num_regions - 1, 0,
+> 			       num_regions - 1, sizeof (float));
+>   } else {			/* Shouldn't use them; crash hard if I do!   */
+2279c1579
+<  }
+---
+>   }
+2281c1581
+<  if (place_cost_type == LINEAR_CONG) {
+---
+>   if (place_cost_type == LINEAR_CONG) {
+2283c1583
+<  }
+---
+>   }
+2286,2287c1586,1588
+< 
+< static void alloc_place_regions (int num_regions) {
+---
+> static void
+> alloc_place_regions (int num_regions)
+> {
+2293,2307c1594,1613
+<  place_region_x = (struct s_place_region **) alloc_matrix (0, num_regions-1,
+<    0, num_regions-1, sizeof (struct s_place_region));
+< 
+<  place_region_y = (struct s_place_region **) alloc_matrix (0, num_regions-1,
+<    0, num_regions-1, sizeof (struct s_place_region));
+<  
+<  place_region_bounds_x = (float *) my_malloc ((num_regions+1) * 
+<     sizeof (float));
+< 
+<  place_region_bounds_y = (float *) my_malloc ((num_regions+1) * 
+<     sizeof (float));
+< }
+< 
+< 
+< static void load_place_regions (int num_regions) {
+---
+>   place_region_x =
+>     (struct s_place_region **) alloc_matrix (0, num_regions - 1, 0,
+> 					     num_regions - 1,
+> 					     sizeof (struct s_place_region));
+> 
+>   place_region_y =
+>     (struct s_place_region **) alloc_matrix (0, num_regions - 1, 0,
+> 					     num_regions - 1,
+> 					     sizeof (struct s_place_region));
+> 
+>   place_region_bounds_x = (float *) my_malloc ((num_regions + 1) *
+> 					       sizeof (float));
+> 
+>   place_region_bounds_y = (float *) my_malloc ((num_regions + 1) *
+> 					       sizeof (float));
+> }
+> 
+> static void
+> load_place_regions (int num_regions)
+> {
+2312,2354c1618,1660
+<  int i, j, low_block, high_block, rnum;
+<  float low_lim, high_lim, capacity, fac, block_capacity;
+<  float len_fac, height_fac;
+< 
+< /* First load up horizontal channel capacities.  */ 
+< 
+<  for (j=0;j<num_regions;j++) {
+<      capacity = 0.;
+<      low_lim = (float) j / (float) num_regions * ny + 1.;
+<      high_lim = (float) (j+1) / (float) num_regions * ny;
+<      low_block = floor (low_lim);
+<      low_block = max (1,low_block); /* Watch for weird roundoff effects. */
+<      high_block = ceil (high_lim);
+<      high_block = min(high_block, ny);
+< 
+<      block_capacity = (chan_width_x[low_block - 1] + 
+<           chan_width_x[low_block])/2.;
+<      if (low_block == 1) 
+<         block_capacity += chan_width_x[0]/2.;
+< 
+<      fac = 1. - (low_lim - low_block);
+<      capacity += fac * block_capacity;
+<         
+<      for (rnum=low_block+1;rnum<high_block;rnum++) {
+<         block_capacity = (chan_width_x[rnum-1] + chan_width_x[rnum]) / 2.;
+<         capacity += block_capacity;
+<      }
+< 
+<      block_capacity = (chan_width_x[high_block-1] +
+<            chan_width_x[high_block]) / 2.;
+<      if (high_block == ny) 
+<         block_capacity += chan_width_x[ny]/2.;
+< 
+<      fac = 1. - (high_block - high_lim);
+<      capacity += fac * block_capacity;
+< 
+<      for (i=0;i<num_regions;i++) {
+<         place_region_x[i][j].capacity = capacity;
+<         place_region_x[i][j].inv_capacity = 1. / capacity;
+<         place_region_x[i][j].occupancy = 0.;
+<         place_region_x[i][j].cost = 0.;
+<      }
+<  }
+---
+>   int i, j, low_block, high_block, rnum;
+>   float low_lim, high_lim, capacity, fac, block_capacity;
+>   float len_fac, height_fac;
+> 
+> /* First load up horizontal channel capacities.  */
+> 
+>   for (j = 0; j < num_regions; j++) {
+>     capacity = 0.;
+>     low_lim = (float) j / (float) num_regions *ny + 1.;
+>     high_lim = (float) (j + 1) / (float) num_regions *ny;
+>     low_block = floor (low_lim);
+>     low_block = max (1, low_block);	/* Watch for weird roundoff effects. */
+>     high_block = ceil (high_lim);
+>     high_block = min (high_block, ny);
+> 
+>     block_capacity = (chan_width_x[low_block - 1] +
+> 		      chan_width_x[low_block]) / 2.;
+>     if (low_block == 1)
+>       block_capacity += chan_width_x[0] / 2.;
+> 
+>     fac = 1. - (low_lim - low_block);
+>     capacity += fac * block_capacity;
+> 
+>     for (rnum = low_block + 1; rnum < high_block; rnum++) {
+>       block_capacity = (chan_width_x[rnum - 1] + chan_width_x[rnum]) / 2.;
+>       capacity += block_capacity;
+>     }
+> 
+>     block_capacity = (chan_width_x[high_block - 1] +
+> 		      chan_width_x[high_block]) / 2.;
+>     if (high_block == ny)
+>       block_capacity += chan_width_x[ny] / 2.;
+> 
+>     fac = 1. - (high_block - high_lim);
+>     capacity += fac * block_capacity;
+> 
+>     for (i = 0; i < num_regions; i++) {
+>       place_region_x[i][j].capacity = capacity;
+>       place_region_x[i][j].inv_capacity = 1. / capacity;
+>       place_region_x[i][j].occupancy = 0.;
+>       place_region_x[i][j].cost = 0.;
+>     }
+>   }
+2357,2394c1663,1700
+<  
+<  for (i=0;i<num_regions;i++) {
+<      capacity = 0.;
+<      low_lim = (float) i / (float) num_regions * nx + 1.;
+<      high_lim = (float) (i+1) / (float) num_regions * nx;
+<      low_block = floor (low_lim);
+<      low_block = max (1,low_block); /* Watch for weird roundoff effects. */
+<      high_block = ceil (high_lim);
+<      high_block = min(high_block, nx);
+<  
+<      block_capacity = (chan_width_y[low_block - 1] +
+<           chan_width_y[low_block])/2.;
+<      if (low_block == 1)
+<         block_capacity += chan_width_y[0]/2.;
+<  
+<      fac = 1. - (low_lim - low_block);
+<      capacity += fac * block_capacity;
+<   
+<      for (rnum=low_block+1;rnum<high_block;rnum++) {
+<         block_capacity = (chan_width_y[rnum-1] + chan_width_y[rnum]) / 2.;
+<         capacity += block_capacity;
+<      }
+<  
+<      block_capacity = (chan_width_y[high_block-1] +
+<            chan_width_y[high_block]) / 2.;
+<      if (high_block == nx)
+<         block_capacity += chan_width_y[nx]/2.;
+<  
+<      fac = 1. - (high_block - high_lim);
+<      capacity += fac * block_capacity;
+<  
+<      for (j=0;j<num_regions;j++) {
+<         place_region_y[i][j].capacity = capacity; 
+<         place_region_y[i][j].inv_capacity = 1. / capacity;
+<         place_region_y[i][j].occupancy = 0.;
+<         place_region_y[i][j].cost = 0.; 
+<      }
+<  }
+---
+> 
+>   for (i = 0; i < num_regions; i++) {
+>     capacity = 0.;
+>     low_lim = (float) i / (float) num_regions *nx + 1.;
+>     high_lim = (float) (i + 1) / (float) num_regions *nx;
+>     low_block = floor (low_lim);
+>     low_block = max (1, low_block);	/* Watch for weird roundoff effects. */
+>     high_block = ceil (high_lim);
+>     high_block = min (high_block, nx);
+> 
+>     block_capacity = (chan_width_y[low_block - 1] +
+> 		      chan_width_y[low_block]) / 2.;
+>     if (low_block == 1)
+>       block_capacity += chan_width_y[0] / 2.;
+> 
+>     fac = 1. - (low_lim - low_block);
+>     capacity += fac * block_capacity;
+> 
+>     for (rnum = low_block + 1; rnum < high_block; rnum++) {
+>       block_capacity = (chan_width_y[rnum - 1] + chan_width_y[rnum]) / 2.;
+>       capacity += block_capacity;
+>     }
+> 
+>     block_capacity = (chan_width_y[high_block - 1] +
+> 		      chan_width_y[high_block]) / 2.;
+>     if (high_block == nx)
+>       block_capacity += chan_width_y[nx] / 2.;
+> 
+>     fac = 1. - (high_block - high_lim);
+>     capacity += fac * block_capacity;
+> 
+>     for (j = 0; j < num_regions; j++) {
+>       place_region_y[i][j].capacity = capacity;
+>       place_region_y[i][j].inv_capacity = 1. / capacity;
+>       place_region_y[i][j].occupancy = 0.;
+>       place_region_y[i][j].cost = 0.;
+>     }
+>   }
+2399,2400c1705,1706
+<  len_fac = (float) nx / (float) num_regions;
+<  height_fac = (float) ny / (float) num_regions;
+---
+>   len_fac = (float) nx / (float) num_regions;
+>   height_fac = (float) ny / (float) num_regions;
+2402,2409c1708,1709
+<  place_region_bounds_x[0] = 0.5;
+<  place_region_bounds_y[0] = 0.5;
+<  
+<  for (i=1;i<=num_regions;i++) {
+<     place_region_bounds_x[i] = place_region_bounds_x[i-1] + len_fac;
+<     place_region_bounds_y[i] = place_region_bounds_y[i-1] + height_fac;
+<  }
+< }
+---
+>   place_region_bounds_x[0] = 0.5;
+>   place_region_bounds_y[0] = 0.5;
+2410a1711,1715
+>   for (i = 1; i <= num_regions; i++) {
+>     place_region_bounds_x[i] = place_region_bounds_x[i - 1] + len_fac;
+>     place_region_bounds_y[i] = place_region_bounds_y[i - 1] + height_fac;
+>   }
+> }
+2412c1717,1719
+< static void free_unique_pin_list (void) {
+---
+> static void
+> free_unique_pin_list (void)
+> {
+2416c1723
+<  int any_dup, inet;
+---
+>   int any_dup, inet;
+2418c1725
+<  any_dup = 0;
+---
+>   any_dup = 0;
+2420c1727
+<  for (inet=0;inet<num_nets;inet++) {
+---
+>   for (inet = 0; inet < num_nets; inet++) {
+2422,2423c1729,1730
+<        free (unique_pin_list[inet]);
+<        any_dup = 1;
+---
+>       free (unique_pin_list[inet]);
+>       any_dup = 1;
+2425c1732
+<  }
+---
+>   }
+2427c1734
+<  if (any_dup != 0) 
+---
+>   if (any_dup != 0)
+2430c1737
+<  free (duplicate_pins);
+---
+>   free (duplicate_pins);
+2433,2434c1740,1742
+< 
+< static void alloc_and_load_unique_pin_list (void) {
+---
+> static void
+> alloc_and_load_unique_pin_list (void)
+> {
+2441,2448d1748
+<   
+<  int inet, ipin, bnum, num_dup, any_dups, offset;
+<  int *times_listed;  /* [0..num_blocks-1]: number of times a block is   *
+<                       * listed in the pinlist of a net.  Temp. storage. */
+< 
+<  duplicate_pins = my_calloc (num_nets, sizeof(int));
+<  times_listed = my_calloc (num_blocks, sizeof(int)); 
+<  any_dups = 0;
+2450,2451c1750,1759
+<  for (inet=0;inet<num_nets;inet++) {
+<     
+---
+>   int inet, ipin, bnum, num_dup, any_dups, offset;
+>   int *times_listed;		/* [0..num_blocks-1]: number of times a block is   *
+> 				 * listed in the pinlist of a net.  Temp. storage. */
+> 
+>   duplicate_pins = my_calloc (num_nets, sizeof (int));
+>   times_listed = my_calloc (num_blocks, sizeof (int));
+>   any_dups = 0;
+> 
+>   for (inet = 0; inet < num_nets; inet++) {
+> 
+2454,2487c1762,1766
+<     for (ipin=0;ipin<net[inet].num_pins;ipin++) {
+<        bnum = net[inet].blocks[ipin];
+<        times_listed[bnum]++;
+<        if (times_listed[bnum] > 1) 
+<           num_dup++;
+<     }
+< 
+<     if (num_dup > 0) {   /* Duplicates found.  Make unique pin list. */
+<        duplicate_pins[inet] = num_dup;
+< 
+<        if (any_dups == 0) {        /* This is the first duplicate found */
+<           unique_pin_list = (int **) my_calloc (num_nets, sizeof(int *));
+<           any_dups = 1;
+<        }
+< 
+<        unique_pin_list[inet] = my_malloc ((net[inet].num_pins - num_dup) *
+<                 sizeof(int));
+< 
+<        offset = 0;
+<        for (ipin=0;ipin<net[inet].num_pins;ipin++) { 
+<           bnum = net[inet].blocks[ipin];
+<           if (times_listed[bnum] != 0) {
+<              times_listed[bnum] = 0;
+<              unique_pin_list[inet][offset] = bnum;
+<              offset++;
+<           }
+<        }
+<     }
+< 
+<     else {          /* No duplicates found.  Reset times_listed. */
+<        for (ipin=0;ipin<net[inet].num_pins;ipin++) {
+<           bnum = net[inet].blocks[ipin];
+<           times_listed[bnum] = 0;
+<        }
+---
+>     for (ipin = 0; ipin < net[inet].num_pins; ipin++) {
+>       bnum = net[inet].blocks[ipin];
+>       times_listed[bnum]++;
+>       if (times_listed[bnum] > 1)
+> 	num_dup++;
+2489d1767
+<  }
+2491,2492c1769,1775
+<  free ((void *) times_listed);
+< }
+---
+>     if (num_dup > 0) {		/* Duplicates found.  Make unique pin list. */
+>       duplicate_pins[inet] = num_dup;
+> 
+>       if (any_dups == 0) {	/* This is the first duplicate found */
+> 	unique_pin_list = (int **) my_calloc (num_nets, sizeof (int *));
+> 	any_dups = 1;
+>       }
+2493a1777,1778
+>       unique_pin_list[inet] =
+> 	my_malloc ((net[inet].num_pins - num_dup) * sizeof (int));
+2495,2496c1780,1804
+< static void get_bb_from_scratch (int inet, struct s_bb *coords, 
+<    struct s_bb *num_on_edges) {
+---
+>       offset = 0;
+>       for (ipin = 0; ipin < net[inet].num_pins; ipin++) {
+> 	bnum = net[inet].blocks[ipin];
+> 	if (times_listed[bnum] != 0) {
+> 	  times_listed[bnum] = 0;
+> 	  unique_pin_list[inet][offset] = bnum;
+> 	  offset++;
+> 	}
+>       }
+>     }
+> 
+>     else {			/* No duplicates found.  Reset times_listed. */
+>       for (ipin = 0; ipin < net[inet].num_pins; ipin++) {
+> 	bnum = net[inet].blocks[ipin];
+> 	times_listed[bnum] = 0;
+>       }
+>     }
+>   }
+> 
+>   free ((void *) times_listed);
+> }
+> 
+> static void
+> get_bb_from_scratch (int inet, struct s_bb *coords, struct s_bb *num_on_edges)
+> {
+2503,2506c1811,1814
+<  int ipin, bnum, x, y, xmin, xmax, ymin, ymax;
+<  int xmin_edge, xmax_edge, ymin_edge, ymax_edge;
+<  int n_pins;
+<  int *plist;
+---
+>   int ipin, bnum, x, y, xmin, xmax, ymin, ymax;
+>   int xmin_edge, xmax_edge, ymin_edge, ymax_edge;
+>   int n_pins;
+>   int *plist;
+2512c1820
+<  if (duplicate_pins[inet] == 0) {
+---
+>   if (duplicate_pins[inet] == 0) {
+2515,2516c1823
+<  }
+<  else {
+---
+>   } else {
+2519c1826
+<  }
+---
+>   }
+2521,2522c1828,1829
+<  x = block[plist[0]].x;
+<  y = block[plist[0]].y;
+---
+>   x = block[plist[0]].x;
+>   y = block[plist[0]].y;
+2524,2525c1831,1843
+<  x = max(min(x,nx),1);   
+<  y = max(min(y,ny),1);
+---
+>   x = max (min (x, nx), 1);
+>   y = max (min (y, ny), 1);
+> 
+>   xmin = x;
+>   ymin = y;
+>   xmax = x;
+>   ymax = y;
+>   xmin_edge = 1;
+>   ymin_edge = 1;
+>   xmax_edge = 1;
+>   ymax_edge = 1;
+> 
+>   for (ipin = 1; ipin < n_pins; ipin++) {
+2527,2537d1844
+<  xmin = x;
+<  ymin = y;
+<  xmax = x;
+<  ymax = y;
+<  xmin_edge = 1;
+<  ymin_edge = 1;
+<  xmax_edge = 1;
+<  ymax_edge = 1;
+<  
+<  for (ipin=1;ipin<n_pins;ipin++) {
+<  
+2549,2550c1856,1857
+<     x = max(min(x,nx),1);   
+<     y = max(min(y,ny),1);
+---
+>     x = max (min (x, nx), 1);
+>     y = max (min (y, ny), 1);
+2552,2553c1859,1860
+<     if (x == xmin) {  
+<        xmin_edge++;
+---
+>     if (x == xmin) {
+>       xmin_edge++;
+2555,2564c1862,1869
+<     if (x == xmax) {  /* Recall that xmin could equal xmax -- don't use else */
+<        xmax_edge++;
+<     }
+<     else if (x < xmin) {
+<        xmin = x;
+<        xmin_edge = 1;
+<     }
+<     else if (x > xmax) {
+<        xmax = x;
+<        xmax_edge = 1;
+---
+>     if (x == xmax) {		/* Recall that xmin could equal xmax -- don't use else */
+>       xmax_edge++;
+>     } else if (x < xmin) {
+>       xmin = x;
+>       xmin_edge = 1;
+>     } else if (x > xmax) {
+>       xmax = x;
+>       xmax_edge = 1;
+2568c1873
+<        ymin_edge++;
+---
+>       ymin_edge++;
+2571,2579c1876,1882
+<        ymax_edge++;
+<     }
+<     else if (y < ymin) {
+<        ymin = y;
+<        ymin_edge = 1;
+<     }
+<     else if (y > ymax) {
+<        ymax = y;
+<        ymax_edge = 1;
+---
+>       ymax_edge++;
+>     } else if (y < ymin) {
+>       ymin = y;
+>       ymin_edge = 1;
+>     } else if (y > ymax) {
+>       ymax = y;
+>       ymax_edge = 1;
+2581c1884
+<  }
+---
+>   }
+2586,2594c1889,1897
+<  coords->xmin = xmin;
+<  coords->xmax = xmax;
+<  coords->ymin = ymin;
+<  coords->ymax = ymax;
+< 
+<  num_on_edges->xmin = xmin_edge;
+<  num_on_edges->xmax = xmax_edge;
+<  num_on_edges->ymin = ymin_edge;
+<  num_on_edges->ymax = ymax_edge;
+---
+>   coords->xmin = xmin;
+>   coords->xmax = xmax;
+>   coords->ymin = ymin;
+>   coords->ymax = ymax;
+> 
+>   num_on_edges->xmin = xmin_edge;
+>   num_on_edges->xmax = xmax_edge;
+>   num_on_edges->ymin = ymin_edge;
+>   num_on_edges->ymax = ymax_edge;
+2597,2598c1900,1902
+< 
+< static float get_net_cost (int inet, struct s_bb *bbptr) {
+---
+> static float
+> get_net_cost (int inet, struct s_bb *bbptr)
+> {
+2603,2604c1907,1908
+<  float ncost, crossing;
+<    
+---
+>   float ncost, crossing;
+> 
+2608,2609c1912,1913
+<  if (net[inet].num_pins > 50) {
+<     crossing = 2.7933 + 0.02616 * (net[inet].num_pins - 50); 
+---
+>   if (net[inet].num_pins > 50) {
+>     crossing = 2.7933 + 0.02616 * (net[inet].num_pins - 50);
+2611,2614c1915,1917
+<  }
+<  else {
+<     crossing = cross_count[net[inet].num_pins-1]; 
+<  }
+---
+>   } else {
+>     crossing = cross_count[net[inet].num_pins - 1];
+>   }
+2623,2624c1926,1927
+<  ncost = (bbptr->xmax - bbptr->xmin + 1) * crossing *
+<          chanx_place_cost_fac[bbptr->ymax][bbptr->ymin-1]; 
+---
+>   ncost = (bbptr->xmax - bbptr->xmin + 1) * crossing *
+>     chanx_place_cost_fac[bbptr->ymax][bbptr->ymin - 1];
+2626,2627c1929,1930
+<  ncost += (bbptr->ymax - bbptr->ymin + 1) * crossing *
+<           chany_place_cost_fac[bbptr->xmax][bbptr->xmin-1];
+---
+>   ncost += (bbptr->ymax - bbptr->ymin + 1) * crossing *
+>     chany_place_cost_fac[bbptr->xmax][bbptr->xmin - 1];
+2629c1932
+<  return(ncost);
+---
+>   return (ncost);
+2632,2633c1935,1937
+< 
+< static void get_non_updateable_bb (int inet, struct s_bb *bb_coord_new) {
+---
+> static void
+> get_non_updateable_bb (int inet, struct s_bb *bb_coord_new)
+> {
+2642a1947
+>   int k, xmax, ymax, xmin, ymin, x, y;
+2644,2647c1949,1950
+<  int k, xmax, ymax, xmin, ymin, x, y;
+<  
+<  x = block[net[inet].blocks[0]].x;
+<  y = block[net[inet].blocks[0]].y;
+---
+>   x = block[net[inet].blocks[0]].x;
+>   y = block[net[inet].blocks[0]].y;
+2649,2652c1952,1955
+<  xmin = x;
+<  ymin = y;
+<  xmax = x;
+<  ymax = y;
+---
+>   xmin = x;
+>   ymin = y;
+>   xmax = x;
+>   ymax = y;
+2654c1957
+<  for (k=1;k<net[inet].num_pins;k++) {
+---
+>   for (k = 1; k < net[inet].num_pins; k++) {
+2659,2662c1962,1964
+<        xmin = x;
+<     }
+<     else if (x > xmax) {
+<        xmax = x;
+---
+>       xmin = x;
+>     } else if (x > xmax) {
+>       xmax = x;
+2666,2669c1968,1970
+<        ymin = y;
+<     }
+<     else if (y > ymax ) {
+<        ymax = y;
+---
+>       ymin = y;
+>     } else if (y > ymax) {
+>       ymax = y;
+2671,2685c1972
+<  }
+< 
+<  /* Now I've found the coordinates of the bounding box.  There are no *
+<   * channels beyond nx and ny, so I want to clip to that.  As well,   *
+<   * since I'll always include the channel immediately below and the   *
+<   * channel immediately to the left of the bounding box, I want to    *
+<   * clip to 1 in both directions as well (since minimum channel index *
+<   * is 0).  See route.c for a channel diagram.                        */
+<  
+<  bb_coord_new->xmin = max(min(xmin,nx),1);
+<  bb_coord_new->ymin = max(min(ymin,ny),1);
+<  bb_coord_new->xmax = max(min(xmax,nx),1);
+<  bb_coord_new->ymax = max(min(ymax,ny),1);
+< }
+< 
+---
+>   }
+2687,2688c1974,1990
+< static void update_bb (int inet, struct s_bb *bb_coord_new, struct s_bb 
+<     *bb_edge_new, int xold, int yold, int xnew, int ynew) {
+---
+>   /* Now I've found the coordinates of the bounding box.  There are no *
+>    * channels beyond nx and ny, so I want to clip to that.  As well,   *
+>    * since I'll always include the channel immediately below and the   *
+>    * channel immediately to the left of the bounding box, I want to    *
+>    * clip to 1 in both directions as well (since minimum channel index *
+>    * is 0).  See route.c for a channel diagram.                        */
+> 
+>   bb_coord_new->xmin = max (min (xmin, nx), 1);
+>   bb_coord_new->ymin = max (min (ymin, ny), 1);
+>   bb_coord_new->xmax = max (min (xmax, nx), 1);
+>   bb_coord_new->ymax = max (min (ymax, ny), 1);
+> }
+> 
+> static void
+> update_bb (int inet, struct s_bb *bb_coord_new, struct s_bb
+> 	   *bb_edge_new, int xold, int yold, int xnew, int ynew)
+> {
+2703,2706c2005,2008
+<  xnew = max(min(xnew,nx),1);
+<  ynew = max(min(ynew,ny),1);
+<  xold = max(min(xold,nx),1);
+<  yold = max(min(yold,ny),1);
+---
+>   xnew = max (min (xnew, nx), 1);
+>   ynew = max (min (ynew, ny), 1);
+>   xold = max (min (xold, nx), 1);
+>   yold = max (min (yold, ny), 1);
+2708c2010
+< /* Check if I can update the bounding box incrementally. */ 
+---
+> /* Check if I can update the bounding box incrementally. */
+2710c2012
+<  if (xnew < xold) {                          /* Move to left. */
+---
+>   if (xnew < xold) {		/* Move to left. */
+2714,2722c2016,2023
+<     if (xold == bb_coords[inet].xmax) {       /* Old position at xmax. */
+<        if (bb_num_on_edges[inet].xmax == 1) {
+<           get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+<           return;
+<        }
+<        else {
+<           bb_edge_new->xmax = bb_num_on_edges[inet].xmax - 1;
+<           bb_coord_new->xmax = bb_coords[inet].xmax; 
+<        }
+---
+>     if (xold == bb_coords[inet].xmax) {	/* Old position at xmax. */
+>       if (bb_num_on_edges[inet].xmax == 1) {
+> 	get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+> 	return;
+>       } else {
+> 	bb_edge_new->xmax = bb_num_on_edges[inet].xmax - 1;
+> 	bb_coord_new->xmax = bb_coords[inet].xmax;
+>       }
+2725,2727c2026,2028
+<     else {              /* Move to left, old postion was not at xmax. */
+<        bb_coord_new->xmax = bb_coords[inet].xmax; 
+<        bb_edge_new->xmax = bb_num_on_edges[inet].xmax;
+---
+>     else {			/* Move to left, old postion was not at xmax. */
+>       bb_coord_new->xmax = bb_coords[inet].xmax;
+>       bb_edge_new->xmax = bb_num_on_edges[inet].xmax;
+2732,2734c2033,2035
+<     if (xnew < bb_coords[inet].xmin) {    /* Moved past xmin */
+<        bb_coord_new->xmin = xnew;
+<        bb_edge_new->xmin = 1;
+---
+>     if (xnew < bb_coords[inet].xmin) {	/* Moved past xmin */
+>       bb_coord_new->xmin = xnew;
+>       bb_edge_new->xmin = 1;
+2736,2739c2037,2040
+<     
+<     else if (xnew == bb_coords[inet].xmin) {   /* Moved to xmin */
+<        bb_coord_new->xmin = xnew;
+<        bb_edge_new->xmin = bb_num_on_edges[inet].xmin + 1;
+---
+> 
+>     else if (xnew == bb_coords[inet].xmin) {	/* Moved to xmin */
+>       bb_coord_new->xmin = xnew;
+>       bb_edge_new->xmin = bb_num_on_edges[inet].xmin + 1;
+2741,2744c2042,2045
+<     
+<     else {                                  /* Xmin unchanged. */
+<        bb_coord_new->xmin = bb_coords[inet].xmin;
+<        bb_edge_new->xmin = bb_num_on_edges[inet].xmin;
+---
+> 
+>     else {			/* Xmin unchanged. */
+>       bb_coord_new->xmin = bb_coords[inet].xmin;
+>       bb_edge_new->xmin = bb_num_on_edges[inet].xmin;
+2746c2047
+<  }    /* End of move to left case. */
+---
+>   }
+2747a2049,2050
+>   /* End of move to left case. */
+>   else if (xnew > xold) {	/* Move to right. */
+2749,2750d2051
+<  else if (xnew > xold) {             /* Move to right. */
+<     
+2753,2761c2054,2061
+<     if (xold == bb_coords[inet].xmin) {   /* Old position at xmin. */
+<        if (bb_num_on_edges[inet].xmin == 1) {
+<           get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+<           return;
+<        }
+<        else {
+<           bb_edge_new->xmin = bb_num_on_edges[inet].xmin - 1;
+<           bb_coord_new->xmin = bb_coords[inet].xmin;
+<        }
+---
+>     if (xold == bb_coords[inet].xmin) {	/* Old position at xmin. */
+>       if (bb_num_on_edges[inet].xmin == 1) {
+> 	get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+> 	return;
+>       } else {
+> 	bb_edge_new->xmin = bb_num_on_edges[inet].xmin - 1;
+> 	bb_coord_new->xmin = bb_coords[inet].xmin;
+>       }
+2764,2766c2064,2066
+<     else {                /* Move to right, old position was not at xmin. */
+<        bb_coord_new->xmin = bb_coords[inet].xmin;
+<        bb_edge_new->xmin = bb_num_on_edges[inet].xmin;
+---
+>     else {			/* Move to right, old position was not at xmin. */
+>       bb_coord_new->xmin = bb_coords[inet].xmin;
+>       bb_edge_new->xmin = bb_num_on_edges[inet].xmin;
+2771,2783c2071,2078
+<     if (xnew > bb_coords[inet].xmax) {    /* Moved past xmax. */
+<        bb_coord_new->xmax = xnew;
+<        bb_edge_new->xmax = 1;   
+<     } 
+<     
+<     else if (xnew == bb_coords[inet].xmax) {   /* Moved to xmax */
+<        bb_coord_new->xmax = xnew;
+<        bb_edge_new->xmax = bb_num_on_edges[inet].xmax + 1;
+<     } 
+<      
+<     else {                                  /* Xmax unchanged. */ 
+<        bb_coord_new->xmax = bb_coords[inet].xmax; 
+<        bb_edge_new->xmax = bb_num_on_edges[inet].xmax;   
+---
+>     if (xnew > bb_coords[inet].xmax) {	/* Moved past xmax. */
+>       bb_coord_new->xmax = xnew;
+>       bb_edge_new->xmax = 1;
+>     }
+> 
+>     else if (xnew == bb_coords[inet].xmax) {	/* Moved to xmax */
+>       bb_coord_new->xmax = xnew;
+>       bb_edge_new->xmax = bb_num_on_edges[inet].xmax + 1;
+2785d2079
+<  }    /* End of move to right case. */
+2787c2081,2087
+<  else {          /* xnew == xold -- no x motion. */
+---
+>     else {			/* Xmax unchanged. */
+>       bb_coord_new->xmax = bb_coords[inet].xmax;
+>       bb_edge_new->xmax = bb_num_on_edges[inet].xmax;
+>     }
+>   }
+>   /* End of move to right case. */
+>   else {			/* xnew == xold -- no x motion. */
+2792c2092
+<  }
+---
+>   }
+2796c2096
+<  if (ynew < yold) {                  /* Move down. */
+---
+>   if (ynew < yold) {		/* Move down. */
+2800,2815c2100,2114
+<     if (yold == bb_coords[inet].ymax) {       /* Old position at ymax. */
+<        if (bb_num_on_edges[inet].ymax == 1) {
+<           get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+<           return;
+<        }
+<        else {
+<           bb_edge_new->ymax = bb_num_on_edges[inet].ymax - 1;
+<           bb_coord_new->ymax = bb_coords[inet].ymax;
+<        }
+<     }     
+<        
+<     else {              /* Move down, old postion was not at ymax. */
+<        bb_coord_new->ymax = bb_coords[inet].ymax;
+<        bb_edge_new->ymax = bb_num_on_edges[inet].ymax;
+<     }     
+<  
+---
+>     if (yold == bb_coords[inet].ymax) {	/* Old position at ymax. */
+>       if (bb_num_on_edges[inet].ymax == 1) {
+> 	get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+> 	return;
+>       } else {
+> 	bb_edge_new->ymax = bb_num_on_edges[inet].ymax - 1;
+> 	bb_coord_new->ymax = bb_coords[inet].ymax;
+>       }
+>     }
+> 
+>     else {			/* Move down, old postion was not at ymax. */
+>       bb_coord_new->ymax = bb_coords[inet].ymax;
+>       bb_edge_new->ymax = bb_num_on_edges[inet].ymax;
+>     }
+> 
+2817,2835c2116,2134
+<  
+<     if (ynew < bb_coords[inet].ymin) {    /* Moved past ymin */
+<        bb_coord_new->ymin = ynew;
+<        bb_edge_new->ymin = 1;
+<     }     
+<     
+<     else if (ynew == bb_coords[inet].ymin) {   /* Moved to ymin */
+<        bb_coord_new->ymin = ynew;
+<        bb_edge_new->ymin = bb_num_on_edges[inet].ymin + 1;
+<     }     
+<     
+<     else {                                  /* ymin unchanged. */
+<        bb_coord_new->ymin = bb_coords[inet].ymin;
+<        bb_edge_new->ymin = bb_num_on_edges[inet].ymin;
+<     }     
+<  }    /* End of move down case. */
+<  
+<  else if (ynew > yold) {             /* Moved up. */
+<     
+---
+> 
+>     if (ynew < bb_coords[inet].ymin) {	/* Moved past ymin */
+>       bb_coord_new->ymin = ynew;
+>       bb_edge_new->ymin = 1;
+>     }
+> 
+>     else if (ynew == bb_coords[inet].ymin) {	/* Moved to ymin */
+>       bb_coord_new->ymin = ynew;
+>       bb_edge_new->ymin = bb_num_on_edges[inet].ymin + 1;
+>     }
+> 
+>     else {			/* ymin unchanged. */
+>       bb_coord_new->ymin = bb_coords[inet].ymin;
+>       bb_edge_new->ymin = bb_num_on_edges[inet].ymin;
+>     }
+>   }
+>   /* End of move down case. */
+>   else if (ynew > yold) {	/* Moved up. */
+> 
+2837,2853c2136,2151
+<  
+<     if (yold == bb_coords[inet].ymin) {   /* Old position at ymin. */
+<        if (bb_num_on_edges[inet].ymin == 1) {
+<           get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+<           return;
+<        }
+<        else {
+<           bb_edge_new->ymin = bb_num_on_edges[inet].ymin - 1;
+<           bb_coord_new->ymin = bb_coords[inet].ymin;
+<        }
+<     }     
+<        
+<     else {                /* Moved up, old position was not at ymin. */
+<        bb_coord_new->ymin = bb_coords[inet].ymin;
+<        bb_edge_new->ymin = bb_num_on_edges[inet].ymin;
+<     }     
+<  
+---
+> 
+>     if (yold == bb_coords[inet].ymin) {	/* Old position at ymin. */
+>       if (bb_num_on_edges[inet].ymin == 1) {
+> 	get_bb_from_scratch (inet, bb_coord_new, bb_edge_new);
+> 	return;
+>       } else {
+> 	bb_edge_new->ymin = bb_num_on_edges[inet].ymin - 1;
+> 	bb_coord_new->ymin = bb_coords[inet].ymin;
+>       }
+>     }
+> 
+>     else {			/* Moved up, old position was not at ymin. */
+>       bb_coord_new->ymin = bb_coords[inet].ymin;
+>       bb_edge_new->ymin = bb_num_on_edges[inet].ymin;
+>     }
+> 
+2855,2870d2152
+<  
+<     if (ynew > bb_coords[inet].ymax) {    /* Moved past ymax. */
+<        bb_coord_new->ymax = ynew;
+<        bb_edge_new->ymax = 1;
+<     }     
+<     
+<     else if (ynew == bb_coords[inet].ymax) {   /* Moved to ymax */
+<        bb_coord_new->ymax = ynew;
+<        bb_edge_new->ymax = bb_num_on_edges[inet].ymax + 1;
+<     }     
+<      
+<     else {                                  /* ymax unchanged. */
+<        bb_coord_new->ymax = bb_coords[inet].ymax;
+<        bb_edge_new->ymax = bb_num_on_edges[inet].ymax;
+<     }     
+<  }    /* End of move up case. */
+2872c2154,2170
+<  else {          /* ynew == yold -- no y motion. */
+---
+>     if (ynew > bb_coords[inet].ymax) {	/* Moved past ymax. */
+>       bb_coord_new->ymax = ynew;
+>       bb_edge_new->ymax = 1;
+>     }
+> 
+>     else if (ynew == bb_coords[inet].ymax) {	/* Moved to ymax */
+>       bb_coord_new->ymax = ynew;
+>       bb_edge_new->ymax = bb_num_on_edges[inet].ymax + 1;
+>     }
+> 
+>     else {			/* ymax unchanged. */
+>       bb_coord_new->ymax = bb_coords[inet].ymax;
+>       bb_edge_new->ymax = bb_num_on_edges[inet].ymax;
+>     }
+>   }
+>   /* End of move up case. */
+>   else {			/* ynew == yold -- no y motion. */
+2877c2175
+<  }
+---
+>   }
+2879a2178,2179
+> static void initial_placement (enum e_pad_loc_type pad_loc_type, char *pad_loc_file)
+> {
+2881,2882c2181,2219
+< static void initial_placement (enum e_pad_loc_type pad_loc_type,
+<             char *pad_loc_file) {  
+---
+>   /* Randomly places the blocks to create an initial placement.     */
+> 
+>   struct s_pos
+>   {
+>     int x;
+>     int y;
+>   } *pos;
+>   int i, j, k, count, iblk, choice, tsize, isubblk;
+> 
+>   tsize = max (nx * ny, 2 * (nx + ny));
+>   pos = (struct s_pos *) my_malloc (tsize * sizeof (struct s_pos));
+> 
+>   /* Initialize all occupancy to zero. */
+>   for (i = 0; i <= nx + 1; i++) {
+>     for (j = 0; j <= ny + 1; j++) {
+>       clb[i][j].occ = 0;
+>     }
+>   }
+>   count = 0;
+>   for (i = 1; i <= nx; i++) {
+>     for (j = 1; j <= ny; j++) {
+>       pos[count].x = i;
+>       pos[count].y = j;
+>       count++;
+>     }
+>   }
+>   for (iblk = 0; iblk < num_blocks; iblk++) {
+>     //printf("bloco %d do tipo %d", iblk, block[iblk].type);
+>     if (block[iblk].type == CLB) {	/* only place CLBs in center */
+>       choice = my_irand (count - 1);
+> 
+>       clb[pos[choice].x][pos[choice].y].u.block = iblk;
+>       clb[pos[choice].x][pos[choice].y].occ = 1;
+> 
+>       /* Ensure randomizer doesn't pick this block again */
+>       pos[choice] = pos[count - 1];	/* overwrite used block position */
+>       count--;
+>     }
+>   }
+2884c2221
+< /* Randomly places the blocks to create an initial placement.     */
+---
+> /* Now do the io blocks around the periphery */
+2886,2887c2223,2253
+<  struct s_pos {int x; int y;} *pos; 
+<  int i, j, k, count, iblk, choice, tsize, isubblk;
+---
+>   if (pad_loc_type == USER) {
+>     read_user_pad_loc (pad_loc_file);
+>   } else {			/* place_randomly. */
+>     count = 0;
+>     for (i = 1; i <= nx; i++) {
+>       pos[count].x = i;
+>       pos[count].y = 0;
+>       pos[count + 1].x = i;
+>       pos[count + 1].y = ny + 1;
+>       count += 2;
+>     }
+> 
+>     for (j = 1; j <= ny; j++) {
+>       pos[count].x = 0;
+>       pos[count].y = j;
+>       pos[count + 1].x = nx + 1;
+>       pos[count + 1].y = j;
+>       count += 2;
+>     }
+> 
+>     for (iblk = 0; iblk < num_blocks; iblk++) {
+>       if (block[iblk].type == INPAD || block[iblk].type == OUTPAD) {
+> 	choice = my_irand (count - 1);
+> 	isubblk = clb[pos[choice].x][pos[choice].y].occ;
+> 	clb[pos[choice].x][pos[choice].y].u.io_blocks[isubblk] = iblk;
+> 	clb[pos[choice].x][pos[choice].y].occ++;
+> 	if (clb[pos[choice].x][pos[choice].y].occ == io_rat) {
+> 	  /* Ensure randomizer doesn't pick this block again */
+> 	  pos[choice] = pos[count - 1];	/* overwrite used block position */
+> 	  count--;
+> 	}
+2889,2890c2255,2257
+<  tsize = max(nx*ny, 2*(nx+ny));
+<  pos = (struct s_pos *) my_malloc(tsize*sizeof(struct s_pos));
+---
+>       }
+>     }
+>   }				/* End randomly place IO blocks branch of if */
+2892c2259,2260
+<  /* Initialize all occupancy to zero. */
+---
+> /* All the blocks are placed now.  Make the block array agree with the    *
+>  * clb array.                                                             */
+2894,2896c2262,2276
+<  for (i=0;i<=nx+1;i++) {
+<     for (j=0;j<=ny+1;j++) {
+<        clb[i][j].occ = 0;
+---
+>   for (i = 0; i <= nx + 1; i++) {
+>     for (j = 0; j <= ny + 1; j++) {
+>       if (clb[i][j].type == CLB) {
+> 	if (clb[i][j].occ == 1) {
+> 	  block[clb[i][j].u.block].x = i;
+> 	  block[clb[i][j].u.block].y = j;
+> 	}
+>       } else {
+> 	if (clb[i][j].type == IO) {
+> 	  for (k = 0; k < clb[i][j].occ; k++) {
+> 	    block[clb[i][j].u.io_blocks[k]].x = i;
+> 	    block[clb[i][j].u.io_blocks[k]].y = j;
+> 	  }
+> 	}
+>       }
+2898,2907c2278,2291
+<  }
+<  
+<  count = 0;
+<  for (i=1;i<=nx;i++) {
+<     for (j=1;j<=ny;j++) {
+<         pos[count].x = i;
+<         pos[count].y = j;
+<         count++;
+<      }
+<  }
+---
+>   }
+> 
+> #ifdef VERBOSE
+>   printf ("At end of initial_placement.\n");
+>   dump_clbs ();
+> #endif
+> 
+>   free (pos);
+> }
+> 
+> static void my_initial_placement (enum e_pad_loc_type pad_loc_type, char *pad_loc_file)
+> {
+> 
+>   /* Randomly places the blocks to create an initial placement.     */
+2909,2917c2293,2306
+<  for (iblk=0;iblk<num_blocks;iblk++) {
+<     if (block[iblk].type == CLB) {     /* only place CLBs in center */
+<        choice = my_irand(count - 1); 
+<        clb[pos[choice].x][pos[choice].y].u.block = iblk;
+<        clb[pos[choice].x][pos[choice].y].occ = 1;
+< 
+<        /* Ensure randomizer doesn't pick this block again */
+<        pos[choice] = pos[count-1];   /* overwrite used block position */
+<        count--;
+---
+>   struct s_pos
+>   {
+>     int x;
+>     int y;
+>   } *pos;
+>   int i, j, k, count, iblk, choice, tsize, isubblk;
+> 
+>   tsize = max (nx * ny, 2 * (nx + ny));
+>   pos = (struct s_pos *) my_malloc (tsize * sizeof (struct s_pos));
+> 
+>   /* Initialize all occupancy to zero. */
+>   for (i = 0; i <= nx + 1; i++) {
+>     for (j = 0; j <= ny + 1; j++) {
+>       clb[i][j].occ = 0;
+2919c2308,2329
+<  }
+---
+>   }
+>   count = 0;
+>   for (i = 1; i <= nx; i++) {
+>     for (j = 1; j <= ny; j++) {
+>       pos[count].x = i;
+>       pos[count].y = j;
+>       count++;
+>     }
+>   }
+>   for (iblk = 0; iblk < num_blocks; iblk++) {
+>     //printf("bloco %d do tipo %d", iblk, block[iblk].type);
+>     if (block[iblk].type == CLB) {	/* only place CLBs in center */
+>       choice = my_irand (count - 1);
+> 
+>       clb[pos[choice].x][pos[choice].y].u.block = iblk;
+>       clb[pos[choice].x][pos[choice].y].occ = 1;
+> 
+>       /* Ensure randomizer doesn't pick this block again */
+>       pos[choice] = pos[count - 1];	/* overwrite used block position */
+>       count--;
+>     }
+>   }
+2923c2333
+<  if (pad_loc_type == USER) {
+---
+>   if (pad_loc_type == USER) {
+2925,2926c2335
+<  } 
+<  else {           /* place_randomly. */
+---
+>   } else {			/* place_randomly. */
+2928,2954c2337,2363
+<     for (i=1;i<=nx;i++) {
+<        pos[count].x = i;
+<        pos[count].y = 0;
+<        pos[count+1].x = i;
+<        pos[count+1].y = ny + 1;
+<        count += 2;
+<     }
+< 
+<     for (j=1;j<=ny;j++) {
+<        pos[count].x = 0;
+<        pos[count].y = j;
+<        pos[count+1].x = nx + 1;
+<        pos[count+1].y = j;
+<        count += 2;
+<     }
+< 
+<     for (iblk=0;iblk<num_blocks;iblk++) {
+<        if (block[iblk].type == INPAD || block[iblk].type == OUTPAD) {
+<           choice = my_irand (count - 1); 
+<           isubblk = clb[pos[choice].x][pos[choice].y].occ;
+<           clb[pos[choice].x][pos[choice].y].u.io_blocks[isubblk] = iblk;
+<           clb[pos[choice].x][pos[choice].y].occ++;
+<           if (clb[pos[choice].x][pos[choice].y].occ == io_rat) {
+<              /* Ensure randomizer doesn't pick this block again */
+<              pos[choice] = pos[count-1];   /* overwrite used block position */
+<              count--;
+<           }
+---
+>     for (i = 1; i <= nx; i++) {
+>       pos[count].x = i;
+>       pos[count].y = 0;
+>       pos[count + 1].x = i;
+>       pos[count + 1].y = ny + 1;
+>       count += 2;
+>     }
+> 
+>     for (j = 1; j <= ny; j++) {
+>       pos[count].x = 0;
+>       pos[count].y = j;
+>       pos[count + 1].x = nx + 1;
+>       pos[count + 1].y = j;
+>       count += 2;
+>     }
+> 
+>     for (iblk = 0; iblk < num_blocks; iblk++) {
+>       if (block[iblk].type == INPAD || block[iblk].type == OUTPAD) {
+> 	choice = my_irand (count - 1);
+> 	isubblk = clb[pos[choice].x][pos[choice].y].occ;
+> 	clb[pos[choice].x][pos[choice].y].u.io_blocks[isubblk] = iblk;
+> 	clb[pos[choice].x][pos[choice].y].occ++;
+> 	if (clb[pos[choice].x][pos[choice].y].occ == io_rat) {
+> 	  /* Ensure randomizer doesn't pick this block again */
+> 	  pos[choice] = pos[count - 1];	/* overwrite used block position */
+> 	  count--;
+> 	}
+2956c2365
+<        } 
+---
+>       }
+2958c2367
+<  }    /* End randomly place IO blocks branch of if */
+---
+>   }				/* End randomly place IO blocks branch of if */
+2963,2978c2372,2386
+<  for (i=0;i<=nx+1;i++) {
+<     for (j=0;j<=ny+1;j++) {
+<        if (clb[i][j].type == CLB) {
+<           if (clb[i][j].occ == 1) {
+<              block[clb[i][j].u.block].x = i;
+<              block[clb[i][j].u.block].y = j;
+<           }
+<        }
+<        else {
+<           if (clb[i][j].type == IO) {
+<              for (k=0;k<clb[i][j].occ;k++) {
+<                 block[clb[i][j].u.io_blocks[k]].x = i;
+<                 block[clb[i][j].u.io_blocks[k]].y = j;
+<              }
+<           }
+<        }
+---
+>   for (i = 0; i <= nx + 1; i++) {
+>     for (j = 0; j <= ny + 1; j++) {
+>       if (clb[i][j].type == CLB) {
+> 	if (clb[i][j].occ == 1) {
+> 	  block[clb[i][j].u.block].x = i;
+> 	  block[clb[i][j].u.block].y = j;
+> 	}
+>       } else {
+> 	if (clb[i][j].type == IO) {
+> 	  for (k = 0; k < clb[i][j].occ; k++) {
+> 	    block[clb[i][j].u.io_blocks[k]].x = i;
+> 	    block[clb[i][j].u.io_blocks[k]].y = j;
+> 	  }
+> 	}
+>       }
+2980c2388
+<  }
+---
+>   }
+2982,2984c2390,2392
+< #ifdef VERBOSE 
+<  printf("At end of initial_placement.\n");
+<  dump_clbs();
+---
+> #ifdef VERBOSE
+>   printf ("At end of initial_placement.\n");
+>   dump_clbs ();
+2987c2395
+<  free (pos);
+---
+>   free (pos);
+2990,2991c2398,2400
+< 
+< static void free_fast_cost_update_structs (void) {
+---
+> static void
+> free_fast_cost_update_structs (void)
+> {
+2996c2405
+<  int i;
+---
+>   int i;
+2998c2407
+<  for (i=0;i<=ny;i++) 
+---
+>   for (i = 0; i <= ny; i++)
+3000,3001d2408
+<  
+<  free (chanx_place_cost_fac);
+3003c2410,2412
+<  for (i=0;i<=nx;i++) 
+---
+>   free (chanx_place_cost_fac);
+> 
+>   for (i = 0; i <= nx; i++)
+3005,3007d2413
+<  
+<  free (chany_place_cost_fac);
+< }
+3008a2415,2416
+>   free (chany_place_cost_fac);
+> }
+3010c2418,2420
+< static void alloc_and_load_for_fast_cost_update (float place_cost_exp) {
+---
+> static void
+> alloc_and_load_for_fast_cost_update (float place_cost_exp)
+> {
+3024c2434
+<  int low, high, i;
+---
+>   int low, high, i;
+3030,3031c2440,2441
+<  chanx_place_cost_fac = (float **) my_malloc ((ny + 1) * sizeof (float *));
+<  for (i=0;i<=ny;i++)
+---
+>   chanx_place_cost_fac = (float **) my_malloc ((ny + 1) * sizeof (float *));
+>   for (i = 0; i <= ny; i++)
+3033,3036d2442
+<  
+<  chany_place_cost_fac = (float **) my_malloc ((nx + 1) * sizeof (float *));
+<  for (i=0;i<=nx;i++)
+<     chany_place_cost_fac[i] = (float *) my_malloc ((i + 1) * sizeof (float));
+3037a2444,2446
+>   chany_place_cost_fac = (float **) my_malloc ((nx + 1) * sizeof (float *));
+>   for (i = 0; i <= nx; i++)
+>     chany_place_cost_fac[i] = (float *) my_malloc ((i + 1) * sizeof (float));
+3042c2451
+<  chanx_place_cost_fac[0][0] = chan_width_x[0];
+---
+>   chanx_place_cost_fac[0][0] = chan_width_x[0];
+3044,3048c2453,2457
+<  for (high=1;high<=ny;high++) {
+<     chanx_place_cost_fac[high][high] = chan_width_x[high];    
+<     for (low=0;low<high;low++) {
+<        chanx_place_cost_fac[high][low] = chanx_place_cost_fac[high-1][low]
+<           + chan_width_x[high];
+---
+>   for (high = 1; high <= ny; high++) {
+>     chanx_place_cost_fac[high][high] = chan_width_x[high];
+>     for (low = 0; low < high; low++) {
+>       chanx_place_cost_fac[high][low] =
+> 	chanx_place_cost_fac[high - 1][low] + chan_width_x[high];
+3050c2459
+<  }
+---
+>   }
+3059,3067d2467
+<  
+<  for (high=0;high<=ny;high++) 
+<     for (low=0;low<=high;low++) {
+<        chanx_place_cost_fac[high][low] = (high - low + 1.) / 
+<            chanx_place_cost_fac[high][low];
+<        chanx_place_cost_fac[high][low] = 
+<           pow ((double) chanx_place_cost_fac[high][low],
+<           (double) place_cost_exp);
+<     }
+3068a2469,2476
+>   for (high = 0; high <= ny; high++)
+>     for (low = 0; low <= high; low++) {
+>       chanx_place_cost_fac[high][low] = (high - low + 1.) /
+> 	chanx_place_cost_fac[high][low];
+>       chanx_place_cost_fac[high][low] =
+> 	pow ((double) chanx_place_cost_fac[high][low],
+> 	     (double) place_cost_exp);
+>     }
+3072,3075c2480,2483
+<  
+<  chany_place_cost_fac[0][0] = chan_width_y[0];
+<  
+<  for (high=1;high<=nx;high++) {
+---
+> 
+>   chany_place_cost_fac[0][0] = chan_width_y[0];
+> 
+>   for (high = 1; high <= nx; high++) {
+3077,3079c2485,2487
+<     for (low=0;low<high;low++) {
+<        chany_place_cost_fac[high][low] = chany_place_cost_fac[high-1][low]
+<           + chan_width_y[high];
+---
+>     for (low = 0; low < high; low++) {
+>       chany_place_cost_fac[high][low] =
+> 	chany_place_cost_fac[high - 1][low] + chan_width_y[high];
+3081,3082c2489,2490
+<  }
+<  
+---
+>   }
+> 
+3085,3092c2493,2500
+<  
+<  for (high=0;high<=nx;high++) 
+<     for (low=0;low<=high;low++) {
+<        chany_place_cost_fac[high][low] = (high - low + 1.) / 
+<            chany_place_cost_fac[high][low]; 
+<        chany_place_cost_fac[high][low] = 
+<           pow ((double) chany_place_cost_fac[high][low],
+<           (double) place_cost_exp);
+---
+> 
+>   for (high = 0; high <= nx; high++)
+>     for (low = 0; low <= high; low++) {
+>       chany_place_cost_fac[high][low] = (high - low + 1.) /
+> 	chany_place_cost_fac[high][low];
+>       chany_place_cost_fac[high][low] =
+> 	pow ((double) chany_place_cost_fac[high][low],
+> 	     (double) place_cost_exp);
+3094d2501
+< }
+3095a2503
+> }
+3097,3099c2505,2507
+< static void check_place (float bb_cost, float timing_cost, int place_cost_type, 
+< 			 int num_regions, enum e_place_algorithm place_algorithm,
+< 			 float delay_cost) {
+---
+> static void
+> check_place (float cost, int place_cost_type, int num_regions)
+> {
+3107,3116c2515,2523
+<  static int *bdone; 
+<  int i, j, k, error=0, bnum;
+<  float bb_cost_check;
+<  float timing_cost_check, delay_cost_check;
+< 
+<  bb_cost_check = comp_bb_cost(CHECK, place_cost_type, num_regions);
+<  printf("bb_cost recomputed from scratch is %g.\n", bb_cost_check);
+<  if (fabs(bb_cost_check - bb_cost) > bb_cost * ERROR_TOL) {
+<     printf("Error:  bb_cost_check: %g and bb_cost: %g differ in check_place.\n",
+<       bb_cost_check, bb_cost);
+---
+>   static int *bdone;
+>   int i, j, k, error = 0, bnum;
+>   float cost_check;
+> 
+>   cost_check = comp_cost (CHECK, place_cost_type, num_regions);
+>   printf ("Cost recomputed from scratch is %g.\n", cost_check);
+>   if (fabs (cost_check - cost) > cost * ERROR_TOL) {
+>     printf ("Error:  cost_check: %g and cost: %g differ in check_place.\n",
+> 	    cost_check, cost);
+3118,3137c2525
+<  }
+< 
+<  if (place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      place_algorithm == PATH_TIMING_DRIVEN_PLACE) {
+<    comp_td_costs(&timing_cost_check, &delay_cost_check);
+<    printf("timing_cost recomputed from scratch is %g. \n", timing_cost_check);
+<    if (fabs(timing_cost_check - timing_cost) > timing_cost * ERROR_TOL) {
+<      printf("Error:  timing_cost_check: %g and timing_cost: "
+< 	    "%g differ in check_place.\n",
+< 	    timing_cost_check,timing_cost);
+<      error++;
+<    }
+<    printf("delay_cost recomputed from scratch is %g. \n", delay_cost_check);
+<    if (fabs(delay_cost_check - delay_cost) > delay_cost * ERROR_TOL) {
+<      printf("Error:  delay_cost_check: %g and delay_cost: "
+< 	    "%g differ in check_place.\n",
+< 	    delay_cost_check,delay_cost);
+<      error++;
+<    }
+<  }
+---
+>   }
+3139,3140c2527,2529
+<  bdone = (int *) my_malloc (num_blocks*sizeof(int));
+<  for (i=0;i<num_blocks;i++) bdone[i] = 0;
+---
+>   bdone = (int *) my_malloc (num_blocks * sizeof (int));
+>   for (i = 0; i < num_blocks; i++)
+>     bdone[i] = 0;
+3143,3185c2532,2577
+<  for (i=0;i<=nx+1;i++) 
+<     for (j=0;j<=ny+1;j++) {
+<        if (clb[i][j].occ == 0) continue;
+<        if (clb[i][j].type == CLB) {
+<           bnum = clb[i][j].u.block;
+<           if (block[bnum].type != CLB) {
+<              printf("Error:  block %d type does not match clb(%d,%d) type.\n",
+<                bnum,i,j);
+<              error++;
+<           }
+<           if ((block[bnum].x != i) || (block[bnum].y != j)) {
+<              printf("Error:  block %d location conflicts with clb(%d,%d)"
+<                 "data.\n", bnum, i, j);
+<              error++;
+<           }
+<           if (clb[i][j].occ > 1) {
+<              printf("Error: clb(%d,%d) has occupancy of %d\n",
+<                 i,j,clb[i][j].occ);
+<              error++;
+<           }
+<           bdone[bnum]++;
+<        }
+<        else {  /* IO block */
+<           if (clb[i][j].occ > io_rat) {
+<              printf("Error:  clb(%d,%d) has occupancy of %d\n",i,j,
+<                 clb[i][j].occ);
+<              error++;
+<           }
+<           for (k=0;k<clb[i][j].occ;k++) {
+<              bnum = clb[i][j].u.io_blocks[k];
+<              if ((block[bnum].type != INPAD) && block[bnum].type != OUTPAD) {
+<                printf("Error:  block %d type does not match clb(%d,%d) type.\n",
+<                  bnum,i,j);
+<                error++;
+<              }
+<              if ((block[bnum].x != i) || (block[bnum].y != j)) {
+<                 printf("Error:  block %d location conflicts with clb(%d,%d)"
+<                   "data.\n", bnum, i, j);
+<                 error++; 
+<              }
+<              bdone[bnum]++;
+<           } 
+<        } 
+---
+>   for (i = 0; i <= nx + 1; i++)
+>     for (j = 0; j <= ny + 1; j++) {
+>       if (clb[i][j].occ == 0)
+> 	continue;
+>       if (clb[i][j].type == CLB) {
+> 	bnum = clb[i][j].u.block;
+> 	if (block[bnum].type != CLB) {
+> 	  printf ("Error:  block %d type does not match clb(%d,%d) type.\n",
+> 		  bnum, i, j);
+> 	  error++;
+> 	}
+> 	if ((block[bnum].x != i)
+> 	    || (block[bnum].y != j)) {
+> 	  printf ("Error:  block %d location conflicts with clb(%d,%d)"
+> 		  "data.\n", bnum, i, j);
+> 	  error++;
+> 	}
+> 	if (clb[i][j].occ > 1) {
+> 	  printf ("Error: clb(%d,%d) has occupancy of %d\n", i, j,
+> 		  clb[i][j].occ);
+> 	  error++;
+> 	}
+> 	bdone[bnum]++;
+>       } else {			/* IO block */
+> 	if (clb[i][j].occ > io_rat) {
+> 	  printf ("Error:  clb(%d,%d) has occupancy of %d\n", i, j,
+> 		  clb[i][j].occ);
+> 	  error++;
+> 	}
+> 	for (k = 0; k < clb[i][j].occ; k++) {
+> 	  bnum = clb[i][j].u.io_blocks[k];
+> 	  if ((block[bnum].type != INPAD)
+> 	      && block[bnum].type != OUTPAD) {
+> 	    printf ("Error:  block %d type does not match clb(%d,%d) type.\n",
+> 		    bnum, i, j);
+> 	    error++;
+> 	  }
+> 	  if ((block[bnum].x != i)
+> 	      || (block[bnum].y != j)) {
+> 	    printf ("Error:  block %d location conflicts with clb(%d,%d)"
+> 		    "data.\n", bnum, i, j);
+> 	    error++;
+> 	  }
+> 	  bdone[bnum]++;
+> 	}
+>       }
+3190c2582
+<  for (i=0;i<num_blocks;i++) 
+---
+>   for (i = 0; i < num_blocks; i++)
+3192,3206c2584,2597
+<        printf("Error:  block %d listed %d times in data structures.\n",
+<           i,bdone[i]);
+<        error++;
+<     }
+<  free (bdone);
+< 
+<  if (error == 0) {
+<     printf("\nCompleted placement consistency check successfully.\n\n");
+<  }
+<  else {
+<     printf("\nCompleted placement consistency check, %d Errors found.\n\n",
+<        error);
+<     printf("Aborting program.\n");
+<     exit(1);
+<  }
+---
+>       printf ("Error:  block %d listed %d times in data structures.\n", i,
+> 	      bdone[i]);
+>       error++;
+>     }
+>   free (bdone);
+> 
+>   if (error == 0) {
+>     printf ("\nCompleted placement consistency check successfully.\n\n");
+>   } else {
+>     printf ("\nCompleted placement consistency check, %d Errors found.\n\n",
+> 	    error);
+>     printf ("Aborting program.\n");
+>     exit (1);
+>   }
+3209,3220c2600,2608
+< 
+< void read_place (char *place_file, char *net_file, char *arch_file,
+<                  struct s_placer_opts placer_opts, struct s_router_opts router_opts,
+< 		 t_chan_width_dist chan_width_dist, 
+< 		 struct s_det_routing_arch det_routing_arch, 
+< 		 t_segment_inf *segment_inf, t_timing_inf timing_inf,
+< 		 t_subblock_data *subblock_data_ptr) {
+< 
+<   /* Reads in a previously computed placement of the circuit.  It      *
+<    * checks that the placement corresponds to the current architecture *
+<    * and netlist file.                                                 */
+< 
+---
+> void
+> read_place (char *place_file, char *net_file, char *arch_file,
+> 	    struct s_placer_opts placer_opts,
+> 	    t_chan_width_dist chan_width_dist)
+> {
+> 
+> /* Reads in a previously computed placement of the circuit.  It      *
+>  * checks that the placement corresponds to the current architecture *
+>  * and netlist file.                                                 */
+3223,3224c2611,2612
+<   int chan_width_factor, num_connections, inet, ipin;
+<   float bb_cost, delay_cost, timing_cost, est_crit;
+---
+>   int chan_width_factor;
+>   float cost;
+3226,3242d2613
+<   float **net_slack, **net_delay;
+<   float **remember_net_delay_original_ptr; /*used to free net_delay if it is re-assigned*/
+< 
+<   remember_net_delay_original_ptr = NULL; /*prevents compiler warning*/
+< 
+<   if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<       placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<       placer_opts.enable_timing_computations) {
+<     /*this must be called before alloc_and_load_placement_structs *
+<      *and parse_placement_file since it modifies the structures*/
+<     alloc_lookups_and_criticalities(chan_width_dist,
+< 				    router_opts, 
+< 				    det_routing_arch, 
+< 				    segment_inf,
+< 				    timing_inf, 
+< 				    *subblock_data_ptr,
+< 				    &net_delay, &net_slack);
+3244,3252c2615
+<     num_connections = count_connections();
+< 
+<     remember_net_delay_original_ptr = net_delay;
+<   }
+<   else {
+<     num_connections = 0;
+<   }
+< 
+<   /* First read in the placement.   */
+---
+> /* First read in the placement.   */
+3256,3258c2619,2621
+<   /* Load the channel occupancies and cost factors so that:   *
+<    * (1) the cost check will be OK, and                       *
+<    * (2) the geometry will draw correctly.                    */
+---
+> /* Load the channel occupancies and cost factors so that:   *
+>  * (1) the cost check will be OK, and                       *
+>  * (2) the geometry will draw correctly.                    */
+3267,3270c2630,2633
+<   alloc_and_load_placement_structs (placer_opts.place_cost_type, 
+< 				    placer_opts.num_regions, 
+< 				    placer_opts.place_cost_exp, 
+< 				    &dummy_x,  &dummy_y, placer_opts); 
+---
+>   alloc_and_load_placement_structs (placer_opts.place_cost_type,
+> 				    placer_opts.num_regions,
+> 				    placer_opts.place_cost_exp, &dummy_x,
+> 				    &dummy_y);
+3274,3275c2637,2640
+<   bb_cost = comp_bb_cost (NORMAL, placer_opts.place_cost_type, 
+< 			  placer_opts.num_regions);
+---
+>   cost = comp_cost (NORMAL, placer_opts.place_cost_type,
+> 		    placer_opts.num_regions);
+>   printf ("Placement cost is %g.\n", cost);
+>   check_place (cost, placer_opts.place_cost_type, placer_opts.num_regions);
+3277,3321c2642,2643
+<  if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<      placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<      placer_opts.enable_timing_computations) {
+< 
+<     for (inet = 0; inet<num_nets; inet++)  
+<       for (ipin=1; ipin<net[inet].num_pins; ipin++)
+<     	timing_place_crit[inet][ipin] = 0;  /*dummy crit values*/
+< 
+<     comp_td_costs(&timing_cost, &delay_cost);  /*set up point_to_point_delay_cost*/
+< 
+<     net_delay = point_to_point_delay_cost;  /*this keeps net_delay up to date with the *
+< 					     *same values that the placer is using     */
+<     load_timing_graph_net_delays(net_delay);
+<     est_crit = load_net_slack(net_slack, 0);
+< 
+<     printf("Placement. bb_cost: %g  delay_cost: %g.\n\n", 
+< 	   bb_cost, delay_cost);
+< #ifdef PRINT_SINK_DELAYS
+<     print_sink_delays("Placement_Sink_Delays.echo");
+< #endif
+< #ifdef PRINT_NET_SLACKS
+<    print_net_slack("Placement_Net_Slacks.echo", net_slack);
+< #endif
+< #ifdef PRINT_PLACE_CRIT_PATH
+<    print_critical_path("Placement_Crit_Path.echo");
+< #endif
+<     printf("Placement Estimated Crit Path Delay: %g\n\n", est_crit);
+<   }
+<   else {
+<     timing_cost = 0;
+<     delay_cost = 0;
+<     printf("Placement bb_cost is %g.\n", bb_cost);
+<   }
+<   check_place (bb_cost, timing_cost, placer_opts.place_cost_type, placer_opts.num_regions, 
+< 	       placer_opts.place_algorithm, delay_cost);
+< 
+<   free_placement_structs (placer_opts.place_cost_type, placer_opts.num_regions,
+< 			  dummy_x, dummy_y, placer_opts);
+< 
+<   if (placer_opts.place_algorithm == NET_TIMING_DRIVEN_PLACE ||
+<       placer_opts.place_algorithm == PATH_TIMING_DRIVEN_PLACE ||
+<       placer_opts.enable_timing_computations) {
+<     net_delay = remember_net_delay_original_ptr;
+<     free_lookups_and_criticalities( &net_delay, &net_slack);
+<   }
+---
+>   free_placement_structs (placer_opts.place_cost_type,
+> 			  placer_opts.num_regions, dummy_x, dummy_y);
+3324,3326c2646,2647
+<    
+<   sprintf (msg, "Placement from file %s.  bb_cost %g.", place_file,
+< 	   bb_cost);
+---
+> 
+>   sprintf (msg, "Placement from file %s.  Cost %g.", place_file, cost);
+3328a2650,2679
+> 
+> int
+> is_connected (int b_from, int b_to, int *pins_on_block)
+> {
+>   int net, netto, num_pins;
+>   num_pins = pins_on_block[block[b_from].type];
+>   int bf, bt, ret = 0;
+>   for (bf = 0; bf < num_pins; bf++) {
+>     net = block[b_from].nets[bf];
+>     if (net == -1)
+>       continue;
+> 
+>     for (bt = 0; bt < num_pins; bt++) {
+>       netto = block[b_from].nets[bf];
+>       if (netto == -1)
+> 	continue;
+> 
+>       if (block[b_from].nets[bf] == net) {
+> 	ret = 1;
+> 	//printf("Blocos %d e %d Conectados pela net %d\n",b_from,b_to,net);
+> 	break;
+>       }
+> 
+>     }
+>     if (ret)
+>       break;
+>   }
+>   return ret;
+> 
+> }

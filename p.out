@@ -1,0 +1,14 @@
+Netlist file: luc3.net   Architecture file: vpr422.arch
+Array size: 2 x 2 logic blocks
+
+#block name	x	y	subblk	block number
+#----------	--	--	------	------------
+i_a		0	1	0	#0
+i_b		1	0	0	#1
+i_c		0	2	0	#2
+i_d		3	2	0	#3
+out:o_1		2	0	0	#4
+[b1]		1	1	0	#5
+[b2]		1	2	0	#6
+[b3]		2	2	0	#7
+[b4]		2	1	0	#8

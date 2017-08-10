@@ -1,0 +1,5 @@
+
+./vpr luc3.net vpr422.arch luc3.p luc3.r
+./vpr luc3.net vpr422.arch luc3.p luc3.r -place_chan_width 3 -route_chan_width 3
+
+

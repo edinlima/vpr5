@@ -1,0 +1,80 @@
+
+
+VPR FPGA Placement and Routing Program Version 4.3
+Original VPR by V. Betz
+Timing-driven placement enhancements by A. Marquardt
+Source completed March 25, 2000; compiled Apr 25 2007.
+This code is licensed only for non-commercial use.
+
+
+General Options:
+	The circuit will be placed and routed.
+
+Placer Options:
+	Placement algorithm is path_timing_driven
+	Tradeoff between bounding box and critical path: 0.5
+	Lower bound assumes block distance: 1
+	Recomputing criticalities every 1 temperature changes
+	Inner loop computes criticalities every move_lim/0 moves
+	Exponent starting value used in timing-driven cost function is 1
+	Exponent final value used in timing-driven cost function is 8
+	Automatic annealing schedule selected.
+	Number of moves in the inner loop is (num_blocks)^4/3 * 10
+	Placement cost type is linear congestion.
+	Placement will be performed once.
+	Placement channel width factor = 100.
+	Exponent used in placement cost: 1
+	Initial random seed: 1
+
+Routing Options:
+	Combined GLOBAL + DETAILED routing will be performed.
+	Router algorithm:  timing driven.
+	The router will try at most 30 iterations.
+	Routings can go at most 3 channels outside their bounding box.
+	Cost of a bend (bend_cost) is 0.
+	First iteration sharing penalty factor (first_iter_pres_fac): 0.5
+	Initial (2nd iter.) sharing penalty factor (initial_pres_fac): 0.5
+	Sharing penalty growth factor (pres_fac_mult): 2
+	Accumulated sharing penalty factor (acc_fac): 1
+	Base_cost_type:  delay normalized.
+	Search aggressiveness factor (astar_fac): 1.2
+	Maximum sink criticality (max_criticality): 0.99
+	Exponent for criticality computation (criticality_exp): 1
+	Router will find the minimum number of tracks required to route.
+
+Reading the FPGA architectural description from vpr422.arch.
+Successfully read vpr422.arch.
+Pins per clb: 6.  Pads per row/column: 2.
+Subblocks per clb: 1.  Subblock LUT size: 4.
+Fc value is fraction of tracks in a channel.
+Fc_output: 1.  Fc_input: 1.  Fc_pad: 1.
+Switch block type: Subset.
+Distinct types of segments: 1.
+Distinct types of user-specified switches: 1.
+
+Reading the circuit netlist from apex4.net.
+Warning:  logic block #30 (o_0_) has only 1 pin.
+	Pin is an output -- may be a constant generator.
+	Non-fatal, but check this.
+Warning:  block #30 (o_0_), subblock #0 (o_0_) is a constant generator.
+	(Has no inputs.)
+Successfully read apex4.net.
+1290 blocks, 1271 nets, 0 global nets.
+1262 clbs, 9 inputs, 19 outputs.
+The circuit will be mapped into a 36 x 36 array of clbs.
+
+Computing delta_clb_to_clb lookup matrix, may take a few seconds, please wait...
+Computing delta_inpad_to_clb lookup matrix, may take a few seconds, please wait...
+Computing delta_clb_to_outpad lookup matrix, may take a few seconds, please wait...
+Computing delta_inpad_to_outpad lookup matrix, may take a few seconds, please wait...
+Foram posicionados 19 blocos de OUTPUT
+Total de blocos 1290 posicionados 1257
+
+There are 4479 point to point connections in this circuit
+
+Temperatura inicial:  0.95976
+Initial Placement Cost: 1 bb_cost: 391.556 td_cost: 6.59281e-05 delay_cost: 6.87283e-05
+
+          T        Cost Av. BB Cost  Av. TD Cost   Av Tot Del  P to P Del        d_max   Ac Rate  Std Dev  R limit      Exp  Tot. Moves    Alpha
+   --------  ---------- -----------  -----------    ---------  ----------        -----   -------  -------  -------  -------  ----------    -----
+Error: Moving CLB to illegal type block at (23,0)

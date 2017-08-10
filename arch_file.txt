@@ -1,0 +1,37 @@
+# Uniform channels, 2 pads per row or column.
+
+io_rat 2
+chan_width_io 1
+chan_width_x uniform 1
+chan_width_y uniform 1
+
+# 4-input LUT.  LUT inputs first, then output, then clock.
+# Each input pin appears on one side, while the output is
+# on the bottom and right sides.  Note that the 4 LUT inputs are
+# all made logically-equivalent by declaring them to be the same
+# class.
+
+inpin class: 0 bottom
+inpin class: 0 left
+inpin class: 0 top
+inpin class: 0 right
+outpin class: 1 bottom right
+inpin class: 2 top                  # Clock; shouldn't matter.
+
+# Class 0 is LUT inputs, class 1 is the output, class 2 is the clock.
+
+
+# Needed only for timing analysis, which isn't implemented yet.
+
+subblocks_per_cluster 1
+subblock_lut_size 4
+
+
+#parameters needed only for detailed routing.
+
+switch_block_type subset
+Fc_type fractional
+Fc_output 1
+Fc_input 1
+Fc_pad 1
+
